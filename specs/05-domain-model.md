@@ -1,0 +1,238 @@
+# 领域模型说明书
+
+> 输入：`specs/02-requirements.md`、`specs/03-use-cases.md`、`specs/constitution.md`
+> 状态：草稿（Agent 生成，待人工审查）
+> 说明：本文件描述**领域概念**，不引入 Controller、Repository 实现、DTO 等设计类（那些属于 `09-design-model.md`）。
+
+---
+
+## 1. 领域对象总览
+
+| 类别 | 对象 |
+|---|---|
+| 实体（Entity） | `Account`、`Reader` / `StudentReader` / `TeacherReader`、`Librarian`、`SystemAdmin`、`BorrowCard`、`BookTitle`、`LibraryItem` / `Book` / `Magazine` / `Thesis`、`Loan`、`Reservation`、`FineRecord`、`BookReview` |
+| 值对象 / 枚举 | `Role`、`ReaderType`、`ItemType`、`ItemStatus`、`LoanStatus`、`CardStatus`、`ReservationStatus`、`ReviewStatus` |
+| 策略对象（Strategy） | `BorrowPolicy`、`FineRule` |
+| 领域服务 | `CirculationPolicyChecker`、`FineCalculator` |
+| 仓储接口（领域层声明） | `ReaderRepository`、`ItemRepository`、`LoanRepository`、`ReservationRepository`、`FineRepository`、`ReviewRepository`、`PolicyRepository` |
+
+---
+
+## 2. 身份与账户
+
+### 2.1 Account（账户 · 实体 · 聚合根）
+
+- **职责**：承载登录认证信息，是系统内所有人类参与者的身份载体。
+- **关键属性**：`id`、`username`（唯一）、`password_hash`、`salt`、`role`（`Role`）、`created_at`、`is_active`
+- **关键方法**：
+  - `set_password(raw)`：生成随机盐并计算哈希；
+  - `verify_password(raw) -> bool`：校验密码；
+  - `has_role(role) -> bool`：角色判定。
+- **约束**：
+  - 系统中**不存在明文密码**（宪法 10.1）；
+  - `username` 全局唯一；
+  - 角色从 `Account.role` 解析，业务层不信任请求体中的角色字段。
+- **关系**：与 `Reader` / `Librarian` / `SystemAdmin` 各为 **1 : 0..1**（一个账户最多对应一个业务身份）。
+
+> 设计说明：认证（`Account`）与业务身份（`Reader` 等）分离，避免把密码字段混入领域实体，也便于同一自然人兼具多种身份的扩展。
+
+### 2.2 Role（枚举 · 值对象）
+`READER` / `LIBRARIAN` / `ADMIN`
+
+---
+
+## 3. 读者与借阅证
+
+### 3.1 Reader（读者 · 实体 · 聚合根）
+
+- **职责**：表示可借书的人，持有借阅证，承担借阅配额与期限的载体。
+- **关键属性**：`id`、`account_id`、`name`、`reader_type`（`ReaderType`）、`email`、`phone`、`status`
+- **关键方法**：
+  - `active_loans()`：当前未归还的借阅记录；
+  - `has_overdue()`：是否存在超期未还；
+  - `has_unpaid_fine()`：是否存在未缴罚款；
+  - `can_borrow(policy) -> bool`：委托 `BorrowPolicy` 判定。
+
+**子类（继承）**
+
+| 子类 | 语义 | 差异化行为 |
+|---|---|---|
+| `StudentReader` | 学生读者（本科 / 研究生 / 博士） | 按 `UNDERGRADUATE` / `GRADUATE` / `DOCTOR` 取借阅规则 |
+| `TeacherReader` | 教师读者 | 按 `TEACHER` 取借阅规则 |
+
+- **约束**：`reader_type` 与子类保持一致（单表继承 + 鉴别列）；一个 Reader 最多一张 `ACTIVE` 借阅证。
+- **关系**：`Reader 1 ── 0..1 BorrowCard`；`Reader 1 ── * Loan`；`Reader 1 ── * Reservation`；`Reader 1 ── * FineRecord`（经 Loan 间接）；`Reader 1 ── * BookReview`。
+
+### 3.2 ReaderType（枚举 · 值对象）
+`UNDERGRADUATE`（5 本 / 30 天）、`GRADUATE`（10 / 60）、`DOCTOR`（15 / 90）、`TEACHER`（20 / 90）
+
+### 3.3 Librarian（图书管理员 · 实体）
+
+- **职责**：代理读者办理借书、还书、续借、标记罚款缴清；可查询任意读者借阅信息。
+- **关键属性**：`id`、`account_id`、`name`、`employee_no`
+- **关键方法**：`borrow_book(...)`、`return_book(...)`、`mark_fine_paid(...)`（均为应用服务编排入口，领域对象只提供状态变更方法）。
+- **约束**：不可办理借阅证与图书维护（BR-011）。
+
+### 3.4 SystemAdmin（系统管理员 · 实体）
+
+- **职责**：办理/注销借阅证、维护管理员、维护图书标题与馆藏副本、维护借阅规则与罚款规则、审核评论。
+- **关键属性**：`id`、`account_id`、`name`
+
+### 3.5 BorrowCard（借阅证 · 实体）
+
+- **职责**：证明读者的借书资格。
+- **关键属性**：`id`、`card_no`（唯一，格式 `CARD + 年份 + 6 位序号`）、`reader_id`、`status`（`CardStatus`）、`issued_at`
+- **关键方法**：`is_valid() -> bool`（`status == ACTIVE`）、`revoke()`
+- **约束**：
+  - `card_no` 全局唯一（BR-001）；
+  - 同一读者最多一张 `ACTIVE` 借阅证；
+  - 存在未归还图书时不得注销（BR-017）。
+- **CardStatus**：`ACTIVE` / `LOST` / `REVOKED`
+
+---
+
+## 4. 馆藏与借出物
+
+### 4.1 BookTitle（图书标题 · 实体 · 聚合根）
+
+- **职责**：描述一类出版物的书目信息，是检索、预约、评论的对象。
+- **关键属性**：`id`、`title`、`author`、`isbn`（唯一）、`publisher`、`published_year`、`category`、`item_type`（`ItemType`）、`price`、`is_active`
+- **关键方法**：`available_items()`、`is_reservable()`
+- **约束**：ISBN 唯一；存在未归还副本时不可下架。
+
+### 4.2 LibraryItem（馆藏资源 · 抽象实体）
+
+- **职责**：表示一本可被借阅的**实体副本**，承载状态机与条码。
+- **关键属性**：`id`、`barcode`（唯一，格式 `ITEM + 年份 + 6 位序号`）、`title_id`、`status`（`ItemStatus`）、`location`、`acquired_at`
+- **关键方法**：`mark_borrowed()`、`mark_available()`、`mark_removed()`、`is_available()`
+- **约束**：`barcode` 全局唯一；状态迁移遵循 BR-010。
+
+**子类（继承体系，Q-D1 已确认）**
+
+| 子类 | 扩展属性 | 罚款归属类型 |
+|---|---|---|
+| `Book` | `edition`、`pages` | `CHINESE_BOOK` / `FOREIGN_BOOK` |
+| `Magazine` | `issue_no`、`period` | `CHINESE_MAGAZINE` / `FOREIGN_MAGAZINE` |
+| `Thesis` | `degree`、`school` | `THESIS` |
+
+- **ItemType（枚举）**：`BOOK` / `MAGAZINE` / `THESIS`（单表继承鉴别列）
+- **ItemStatus（枚举）**：`AVAILABLE` / `BORROWED` / `RESERVED` / `REMOVED`
+- **关系**：`BookTitle 1 ── * LibraryItem`
+
+> 罚款单价按**借出物类型**（`CHINESE_BOOK` 等 5 类）配置；领域实现上由 `LibraryItem` 的子类 + 语种标记共同决定，为简化配置，在 `LibraryItem` 上保留 `fine_category` 字段取值 5 种类型之一。
+
+---
+
+## 5. 流通
+
+### 5.1 Loan（借阅记录 · 实体）
+
+- **职责**：记录一次借出与归还的完整生命周期，是续借与罚款计算的载体。
+- **关键属性**：`id`、`reader_id`、`item_id`、`borrow_date`、`due_date`、`return_date`、`status`（`LoanStatus`）、`renew_count`
+- **关键方法**：
+  - `is_overdue(today) -> bool`；
+  - `renew(policy)`：校验"未逾期 + 次数未满 + 无他人有效预约"后延长 `due_date`，`renew_count += 1`，返回新的 `due_date`；
+  - `return_item(today)`：设置 `return_date`，状态置 `RETURNED`，返回逾期天数。
+- **约束**：
+  - `due_date = borrow_date + BorrowPolicy.get_borrow_days(reader_type)`；
+  - 续借上限 1 次（BR-012）；
+  - 已归还或已逾期不可续借。
+- **LoanStatus（枚举）**：`BORROWED` / `RETURNED` / `OVERDUE`
+- **关系**：`Reader 1 ── * Loan`；`LibraryItem 1 ── * Loan`（同一副本历史上可有多条记录，同时最多一条 `BORROWED`）
+
+### 5.2 Reservation（预约 · 实体）
+
+- **职责**：表达读者对某一图书标题的排队请求。
+- **关键属性**：`id`、`reader_id`、`title_id`、`created_at`、`expires_at`、`status`（`ReservationStatus`）、`queue_position`
+- **关键方法**：
+  - `is_expired(today) -> bool`（`today > expires_at`）；
+  - `is_effective(today) -> bool`（`ACTIVE` 且未过期）；
+  - `cancel()`、`fulfill()`、`expire()`
+- **约束**：
+  - 有效期 7 天：`expires_at = created_at + 7 天`（BR-008）；
+  - 同一读者对同一标题最多一条**有效**（未过期）预约（BR-007）；
+  - `EXPIRED` 不占排队位次，不阻塞续借；失效判定为读取时惰性判定。
+- **ReservationStatus（枚举）**：`ACTIVE` / `CANCELLED` / `FULFILLED` / `EXPIRED`
+- **关系**：`Reader 1 ── * Reservation`；`BookTitle 1 ── * Reservation`
+
+---
+
+## 6. 规则与策略
+
+### 6.1 BorrowPolicy（借阅规则 · 策略对象）
+
+- **职责**：按读者类型提供"最大借阅数量"与"借阅期限"，集中承载 BR-002 / BR-004。
+- **关键属性**：`reader_type`、`max_borrow_count`、`borrow_days`
+- **关键方法**：
+  - `get_max_borrow_count(reader_type) -> int`
+  - `get_borrow_days(reader_type) -> int`
+  - `can_borrow(reader, active_loan_count) -> (bool, reason)`
+- **约束**：规则**可配置**（FR-025 持久化），禁止硬编码在 Controller 或路由中（宪法第 8 条）。
+
+### 6.2 FineRule（罚款规则 · 策略对象）
+
+- **职责**：按借出物类型提供每日罚款金额，集中承载 BR-005。
+- **关键属性**：`item_category`、`amount_per_day`
+- **关键方法**：`calculate_fine(item_category, overdue_days) -> Decimal`
+- **约束**：`overdue_days <= 0` 时返回 0；规则可配置（FR-026）；实现为可替换策略，禁止硬编码单价。
+
+### 6.3 FineCalculator（罚款计算 · 领域服务）
+
+- **职责**：在还书流程中，根据 `Loan` 与对应副本的 `fine_category` 委托 `FineRule` 计算金额并生成 `FineRecord`。
+- **关键方法**：`calculate(loan, return_date) -> FineRecord | None`
+- **约束**：本身不持有单价，只做编排与结果封装。
+
+### 6.4 CirculationPolicyChecker（流通前置校验 · 领域服务）
+
+- **职责**：集中执行借书前的四项检查——借阅证有效、未超数量、无超期、无未缴罚款（BR-001～BR-006）。
+- **关键方法**：`check_before_borrow(reader, item) -> (bool, reason)`
+- **约束**：供应用服务调用，不直接返回 HTTP 错误码（错误码映射在表现层完成）。
+
+---
+
+## 7. 罚款
+
+### 7.1 FineRecord（罚款记录 · 实体）
+
+- **职责**：记录一次超期产生的罚款金额与缴纳状态。
+- **关键属性**：`id`、`loan_id`、`amount`、`paid`、`created_at`、`paid_at`
+- **关键方法**：`mark_paid()`
+- **约束**：`amount` 保留 2 位小数；已缴清不可重复缴纳；存在 `paid = false` 的记录时禁止借书（BR-006）。
+
+---
+
+## 8. 评论与评分（P2）
+
+### 8.1 BookReview（图书评论 · 实体）
+
+- **职责**：承载读者对图书标题的评分与评论文本，需经审核方可公开。
+- **关键属性**：`id`、`title_id`、`reader_id`、`rating`（1–5 整数）、`comment`、`status`（`ReviewStatus`）、`created_at`、`updated_at`
+- **关键方法**：`update(rating, comment)`（更新后状态重置为 `PENDING`）、`approve()`、`reject()`、`is_visible()`
+- **约束**：
+  - 同一读者对同一标题仅保留一条记录（BR-014）；
+  - 仅 `APPROVED` 计入平均分并对外可见（BR-018）；
+  - 评分越界为业务错误（BR-013）。
+- **ReviewStatus（枚举）**：`PENDING` / `APPROVED` / `REJECTED`
+- **关系**：`BookTitle 1 ── * BookReview`；`Reader 1 ── * BookReview`
+
+---
+
+## 9. 聚合与一致性边界
+
+| 聚合根 | 聚合内对象 | 一致性规则 |
+|---|---|---|
+| `Reader` | `BorrowCard` | 借阅证状态与读者借书资格强一致；注销借阅证需校验无未归还 |
+| `BookTitle` | `LibraryItem` | 副本状态由标题聚合内统一维护；下架需校验无未归还副本 |
+| `Loan` | （引用 `Reader`、`LibraryItem` 的 ID） | 借书时需同时更新 Loan 与副本状态，**同一事务** |
+| `Reservation` | （引用 `Reader`、`BookTitle` 的 ID） | 排队位次在标题维度计算 |
+| `FineRecord` | （引用 `Loan` 的 ID） | 随还书事务一并生成 |
+
+跨聚合引用**一律通过 ID**，不通过对象引用，避免大聚合导致的性能与一致性问题。
+
+---
+
+## 10. 领域层与基础设施层的边界
+
+- 领域层只声明仓储接口（`ReaderRepository` 等），不依赖 SQLAlchemy Session（宪法第 9 条）；
+- 继承映射（`Reader` 子类、`LibraryItem` 子类）采用 **SQLAlchemy 单表继承 + 鉴别列**，由基础设施层实现，领域层只见子类语义；
+- 枚举值以字符串持久化，便于 SQLite 中直接阅读与调试。
