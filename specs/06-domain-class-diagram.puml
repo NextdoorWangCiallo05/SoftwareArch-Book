@@ -12,6 +12,7 @@ package "值对象 / 枚举" {
     ADMIN
   }
   enum ReaderType {
+    ASSOCIATE
     UNDERGRADUATE
     GRADUATE
     DOCTOR
@@ -246,8 +247,10 @@ package "规则、策略与领域服务" {
 
   class FineRule {
     - item_category: String
+    - grace_days: Integer
     - amount_per_day: Decimal
     --
+    + get_grace_days(cat: String): Integer
     + calculate_fine(cat: String, days: Integer): Decimal
   }
 

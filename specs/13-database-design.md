@@ -181,7 +181,7 @@
 | max_borrow_count | INTEGER | N | | — | 最大借阅数量 |
 | borrow_days | INTEGER | N | | — | 借阅期限（天） |
 
-**初始数据**：`(UNDERGRADUATE,5,30)`、`(GRADUATE,10,60)`、`(DOCTOR,15,90)`、`(TEACHER,20,90)`
+**初始数据**：`(ASSOCIATE,3,30)`、`(UNDERGRADUATE,5,30)`、`(GRADUATE,10,60)`、`(DOCTOR,15,90)`、`(TEACHER,20,90)`
 
 ### 2.13 fine_rules（罚款规则）
 
@@ -189,9 +189,10 @@
 |---|---|---|---|---|---|
 | id | INTEGER | N | PK | 自增 | |
 | item_category | VARCHAR(30) | N | UNIQUE | — | 借出物罚款档位 |
+| grace_days | INTEGER | N | | 0 | 宽限期（天），超出后才计费 |
 | amount_per_day | NUMERIC(10,2) | N | | — | 每日金额 |
 
-**初始数据**：`CHINESE_BOOK 0.50`、`FOREIGN_BOOK 1.00`、`CHINESE_MAGAZINE 0.20`、`FOREIGN_MAGAZINE 0.50`、`THESIS 2.00`
+**初始数据**：`CHINESE_BOOK (0, 0.50)`、`FOREIGN_BOOK (3, 1.00)`、`CHINESE_MAGAZINE (0, 0.20)`、`FOREIGN_MAGAZINE (2, 0.50)`、`THESIS (0, 2.00)`
 
 ### 2.14 book_reviews（图书评论与评分）
 

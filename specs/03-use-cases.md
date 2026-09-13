@@ -266,9 +266,10 @@
 - **基本事件流**：
   1. 系统计算 `overdue_days = return_date - due_date`；
   2. 若 `overdue_days <= 0` → 罚款为 0，结束；
-  3. 系统按副本所属借出物类型从 `FineRule` 获取每日金额；
-  4. 系统计算 `amount = overdue_days × 每日金额`；
-  5. 系统持久化 `FineRecord`（`paid = false`）。
+  3. 系统按副本所属借出物类型从 `FineRule` 获取**宽限期 `grace_days`** 与**每日金额 `amount_per_day`**；
+  4. 若 `overdue_days <= grace_days` → 罚款为 0（仍在宽限期内，不生成记录），结束；
+  5. 系统计算 `chargeable_days = overdue_days - grace_days`，`amount = chargeable_days × amount_per_day`；
+  6. 系统持久化 `FineRecord`（`paid = false`）。
 - **异常事件流**：
   - 3a. 未配置对应类型的罚款规则 → `500`"未配置罚款规则"（视为系统配置错误）。
 - **业务规则**：罚款计算必须委托给 `FineRule` 策略对象，禁止在路由或控制器中硬编码单价。

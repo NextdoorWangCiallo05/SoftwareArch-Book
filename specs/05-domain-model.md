@@ -64,7 +64,7 @@
 - **关系**：`Reader 1 ── 0..1 BorrowCard`；`Reader 1 ── * Loan`；`Reader 1 ── * Reservation`；`Reader 1 ── * FineRecord`（经 Loan 间接）；`Reader 1 ── * BookReview`。
 
 ### 3.2 ReaderType（枚举 · 值对象）
-`UNDERGRADUATE`（5 本 / 30 天）、`GRADUATE`（10 / 60）、`DOCTOR`（15 / 90）、`TEACHER`（20 / 90）
+`ASSOCIATE`（专科生，3 本 / 30 天）、`UNDERGRADUATE`（5 / 30）、`GRADUATE`（10 / 60）、`DOCTOR`（15 / 90）、`TEACHER`（20 / 90）
 
 ### 3.3 Librarian（图书管理员 · 实体）
 
@@ -171,10 +171,16 @@
 
 ### 6.2 FineRule（罚款规则 · 策略对象）
 
-- **职责**：按借出物类型提供每日罚款金额，集中承载 BR-005。
-- **关键属性**：`item_category`、`amount_per_day`
-- **关键方法**：`calculate_fine(item_category, overdue_days) -> Decimal`
-- **约束**：`overdue_days <= 0` 时返回 0；规则可配置（FR-026）；实现为可替换策略，禁止硬编码单价。
+- **职责**：按借出物类型提供**宽限期**与**每日罚款金额**，集中承载 BR-005（指导书：超期时间的规定和罚金都不同）。
+- **关键属性**：`item_category`、`grace_days`、`amount_per_day`
+- **关键方法**：
+  - `get_grace_days(item_category) -> int`
+  - `calculate_fine(item_category, overdue_days) -> Decimal`
+- **约束**：
+  - `overdue_days <= 0` 返回 0；
+  - `0 < overdue_days <= grace_days` 返回 0（宽限期内不计费，但仍判定为超期）；
+  - 计费公式：`max(0, overdue_days - grace_days) × amount_per_day`；
+  - 规则可配置（FR-026），实现为可替换策略，禁止硬编码。
 
 ### 6.3 FineCalculator（罚款计算 · 领域服务）
 

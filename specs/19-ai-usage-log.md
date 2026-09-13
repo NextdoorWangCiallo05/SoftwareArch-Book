@@ -227,3 +227,37 @@ CodeBuddy
 
 ### Git 提交
 `baseline experiment 1 architecture specs`
+
+---
+
+## 第 8 次使用
+
+### 使用工具
+CodeBuddy
+
+### 使用阶段
+需求修订 / 基线重建
+
+### 输入 Prompt 摘要
+"语言与框架：Python 3.14 + FastAPI + SQLAlchemy + Pydantic，然后继续完成实验1要求" —— 更新技术栈、完成实验一剩余步骤（AI 使用记录、人工审查、冻结 baseline）。
+
+### Agent 修改文件
+- `specs/00-project-brief.md`、`specs/07-architecture.md`（技术栈更新为 Python 3.14 / FastAPI 0.141 / SQLAlchemy 2.0 / Pydantic v2）
+- `specs/19-ai-usage-log.md`（新建）
+- 仓库重建：删除因中文路径编码错误生成的目录，在真实项目目录重新 `git init`
+
+### 输出摘要
+- 完成 15 次分阶段提交并打标签 `experiment1-specs-baseline-v1`；
+- 读取 `软件设计与体系结构实验指导书2026.docx` 后**发现两处需求偏差**并修订：
+  1. **读者类型缺专科生** → 新增 `ASSOCIATE`（3 本 / 30 天），同步修订 BR-002、BR-004、领域模型、类图与数据库初始数据；
+  2. **罚款规则缺宽限期** → `FineRule` 增加 `grace_days`，计费公式改为 `max(0, 逾期天数 - 宽限期) × 每日金额`，同步修订 BR-005、FR-020、FR-026、UC-015、数据库 `fine_rules` 表；
+  3. 还书"删除借阅信息"差异：保留历史记录（状态置 `RETURNED`），已在 FR-015 记录设计说明。
+
+### 人工审查结果
+待审查（指导书带来的两处修订建议值：专科生 3 本/30 天；宽限期 0/3/0/2/0 天，可调整）
+
+### 测试结果
+不适用
+
+### Git 提交
+`revise specs according to lab manual: associate reader type and fine grace period`
