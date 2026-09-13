@@ -1,0 +1,114 @@
+@startuml
+!theme plain
+title 顺序图：预约图书（UC-013）
+skinparam linetype ortho
+autonumber
+
+actor "读者" as Reader
+
+participant "ReservationController" as Ctrl
+participant "ReservationService" as Svc
+participant "BookTitleRepository" as TitleRepo
+participant "LoanRepository" as LoanRepo
+participant "ReservationRepository" as ResvRepo
+participant "ReaderRepository" as ReaderRepo
+participant "Reservation" as Resv
+
+== 1. 请求与身份校验 ==
+
+Reader -> Ctrl : POST /api/reservations\n{title_id}\nHeader: Bearer token
+Ctrl -> Svc : create(title_id, operator)
+
+alt 未携带或无效令牌
+    Svc --> Ctrl : raise PermissionDeniedError
+    Ctrl --> Reader : 403 请先登录
+else 身份有效
+    Svc -> ReaderRepo : get_by_account(operator.id)
+    ReaderRepo --> Svc : Reader
+end
+
+== 2. 校验图书标题 ==
+
+Svc -> TitleRepo : get(title_id)
+TitleRepo --> Svc : BookTitle | None
+
+alt 标题不存在
+    Svc --> Ctrl : raise NotFoundError
+    Ctrl --> Reader : 404 图书不存在
+end
+
+== 3. 预约前置校验（BR-007 / BR-009） ==
+
+Svc -> ResvRepo : has_effective(reader_id, title_id)
+ResvRepo --> Svc : bool
+
+alt 已存在本人有效预约
+    Svc --> Ctrl : raise BusinessError
+    Ctrl --> Reader : 400 您已预约过该书
+else 无有效预约
+    Svc -> LoanRepo : has_active_loan_of_title(reader_id, title_id)
+    LoanRepo --> Svc : bool
+    alt 已借有同一标题且未归还
+        Svc --> Ctrl : raise BusinessError
+        Ctrl --> Reader : 400 您已借有该书，无需预约
+    else 未持有
+        Svc --> Svc : 校验通过
+    end
+end
+
+== 4. 创建预约（含排队与有效期 BR-008） ==
+
+Svc -> Resv : create(reader_id, title_id, created_at)
+activate Resv
+Resv -> Resv : expires_at = created_at + 7 天\nstatus = ACTIVE
+Resv --> Svc : Reservation
+deactivate Resv
+
+Svc -> ResvRepo : count_effective_before(title_id, created_at)
+ResvRepo --> Svc : n
+Svc -> Resv : queue_position = n + 1
+
+Svc -> ResvRepo : add(reservation)
+ResvRepo --> Svc : reservation_id
+
+alt 提交成功
+    Svc --> Ctrl : ReservationDTO{reservation_id,\nqueue_position, expires_at}
+    Ctrl --> Reader : 200 预约成功，当前排在第 {queue_position} 位\n预约保留至 {expires_at}
+else 提交失败
+    Svc --> Ctrl : raise InfrastructureError
+    Ctrl --> Reader : 500 系统繁忙，请稍后重试
+end
+
+== 5. 扩展：取消预约（UC-014） ==
+
+Reader -> Ctrl : POST /api/reservations/{id}/cancel
+Ctrl -> Svc : cancel(reservation_id, operator)
+Svc -> ResvRepo : get(reservation_id)
+
+alt 预约不存在
+    Svc --> Ctrl : raise NotFoundError
+    Ctrl --> Reader : 404 预约不存在
+else 非本人预约
+    Svc --> Ctrl : raise PermissionDeniedError
+    Ctrl --> Reader : 403 无权取消他人预约
+else 状态非 ACTIVE
+    Svc --> Ctrl : raise BusinessError
+    Ctrl --> Reader : 400 该预约已取消或已失效
+else 可取消
+    Svc -> Resv : cancel()
+    activate Resv
+    Resv --> Svc : status = CANCELLED
+    deactivate Resv
+    Svc -> ResvRepo : save()
+    Svc --> Ctrl : ReservationDTO
+    Ctrl --> Reader : 200 预约已取消
+end
+
+note right of Resv
+  有效期 7 天
+  过期采用读取时惰性判定
+  EXPIRED 不占排队位次
+  不阻塞他人续借
+end note
+
+@enduml
