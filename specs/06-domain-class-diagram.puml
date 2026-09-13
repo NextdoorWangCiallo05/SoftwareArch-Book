@@ -1,0 +1,326 @@
+@startuml
+!theme plain
+title 图书管理系统 - 领域类图
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+'================ 枚举 =================
+package "值对象 / 枚举" {
+  enum Role {
+    READER
+    LIBRARIAN
+    ADMIN
+  }
+  enum ReaderType {
+    UNDERGRADUATE
+    GRADUATE
+    DOCTOR
+    TEACHER
+  }
+  enum ItemType {
+    BOOK
+    MAGAZINE
+    THESIS
+  }
+  enum ItemStatus {
+    AVAILABLE
+    BORROWED
+    RESERVED
+    REMOVED
+  }
+  enum LoanStatus {
+    BORROWED
+    RETURNED
+    OVERDUE
+  }
+  enum CardStatus {
+    ACTIVE
+    LOST
+    REVOKED
+  }
+  enum ReservationStatus {
+    ACTIVE
+    CANCELLED
+    FULFILLED
+    EXPIRED
+  }
+  enum ReviewStatus {
+    PENDING
+    APPROVED
+    REJECTED
+  }
+}
+
+'================ 身份与账户 =================
+package "身份与账户" {
+  class Account {
+    - id: Long
+    - username: String
+    - password_hash: String
+    - salt: String
+    - role: Role
+    - is_active: Boolean
+    - created_at: DateTime
+    --
+    + set_password(raw: String): void
+    + verify_password(raw: String): bool
+    + has_role(role: Role): bool
+  }
+
+  class Reader {
+    - id: Long
+    - account_id: Long
+    - name: String
+    - reader_type: ReaderType
+    - email: String
+    - status: String
+    --
+    + active_loans(): List~Loan~
+    + has_overdue(): bool
+    + has_unpaid_fine(): bool
+    + can_borrow(policy: BorrowPolicy): bool
+  }
+
+  class StudentReader {
+    - grade: String
+  }
+
+  class TeacherReader {
+    - department: String
+  }
+
+  class Librarian {
+    - id: Long
+    - account_id: Long
+    - name: String
+    - employee_no: String
+  }
+
+  class SystemAdmin {
+    - id: Long
+    - account_id: Long
+    - name: String
+  }
+}
+
+'================ 借阅证 =================
+package "借阅证" {
+  class BorrowCard {
+    - id: Long
+    - card_no: String
+    - reader_id: Long
+    - status: CardStatus
+    - issued_at: DateTime
+    --
+    + is_valid(): bool
+    + revoke(): void
+  }
+}
+
+'================ 馆藏 =================
+package "馆藏与借出物" {
+  class BookTitle {
+    - id: Long
+    - title: String
+    - author: String
+    - isbn: String
+    - publisher: String
+    - published_year: Integer
+    - category: String
+    - item_type: ItemType
+    - price: Decimal
+    - is_active: Boolean
+    --
+    + available_items(): List~LibraryItem~
+    + is_reservable(): bool
+  }
+
+  abstract class LibraryItem {
+    - id: Long
+    - barcode: String
+    - title_id: Long
+    - status: ItemStatus
+    - location: String
+    - fine_category: String
+    - acquired_at: DateTime
+    --
+    + is_available(): bool
+    + mark_borrowed(): void
+    + mark_available(): void
+    + mark_removed(): void
+  }
+
+  class Book {
+    - edition: String
+    - pages: Integer
+  }
+
+  class Magazine {
+    - issue_no: String
+    - period: String
+  }
+
+  class Thesis {
+    - degree: String
+    - school: String
+  }
+}
+
+'================ 流通 =================
+package "流通" {
+  class Loan {
+    - id: Long
+    - reader_id: Long
+    - item_id: Long
+    - borrow_date: Date
+    - due_date: Date
+    - return_date: Date
+    - status: LoanStatus
+    - renew_count: Integer
+    --
+    + is_overdue(today: Date): bool
+    + renew(policy: BorrowPolicy): Date
+    + return_item(today: Date): Integer
+  }
+
+  class Reservation {
+    - id: Long
+    - reader_id: Long
+    - title_id: Long
+    - created_at: DateTime
+    - expires_at: Date
+    - status: ReservationStatus
+    - queue_position: Integer
+    --
+    + is_effective(today: Date): bool
+    + is_expired(today: Date): bool
+    + cancel(): void
+    + fulfill(): void
+  }
+}
+
+'================ 罚款 =================
+package "罚款" {
+  class FineRecord {
+    - id: Long
+    - loan_id: Long
+    - amount: Decimal
+    - paid: Boolean
+    - created_at: DateTime
+    - paid_at: DateTime
+    --
+    + mark_paid(): void
+  }
+}
+
+'================ 评论 =================
+package "评论与评分 (P2)" {
+  class BookReview {
+    - id: Long
+    - title_id: Long
+    - reader_id: Long
+    - rating: Integer
+    - comment: String
+    - status: ReviewStatus
+    - created_at: DateTime
+    - updated_at: DateTime
+    --
+    + update(rating: Integer, comment: String): void
+    + approve(): void
+    + reject(): void
+    + is_visible(): bool
+  }
+}
+
+'================ 策略与领域服务 =================
+package "规则、策略与领域服务" {
+  class BorrowPolicy {
+    - reader_type: ReaderType
+    - max_borrow_count: Integer
+    - borrow_days: Integer
+    --
+    + get_max_borrow_count(t: ReaderType): Integer
+    + get_borrow_days(t: ReaderType): Integer
+    + can_borrow(r: Reader, active: Integer): bool
+  }
+
+  class FineRule {
+    - item_category: String
+    - amount_per_day: Decimal
+    --
+    + calculate_fine(cat: String, days: Integer): Decimal
+  }
+
+  class FineCalculator {
+    --
+    + calculate(loan: Loan, return_date: Date): FineRecord
+  }
+
+  class CirculationPolicyChecker {
+    --
+    + check_before_borrow(r: Reader, i: LibraryItem): bool
+  }
+}
+
+'================ 继承关系 =================
+Reader <|-- StudentReader
+Reader <|-- TeacherReader
+LibraryItem <|-- Book
+LibraryItem <|-- Magazine
+LibraryItem <|-- Thesis
+
+'================ 关联关系 =================
+Account "1" --> "0..1" Reader : 对应 >
+Account "1" --> "0..1" Librarian : 对应 >
+Account "1" --> "0..1" SystemAdmin : 对应 >
+Account --> Role
+
+Reader "1" --> "0..1" BorrowCard : 持有 >
+Reader "1" --> "*" Loan : 借阅 >
+Reader "1" --> "*" Reservation : 预约 >
+Reader "1" --> "*" BookReview : 评论 >
+Reader --> ReaderType
+
+BorrowCard --> CardStatus
+
+BookTitle "1" *-- "*" LibraryItem : 包含副本 >
+BookTitle "1" --> "*" Reservation : 被预约 >
+BookTitle "1" --> "*" BookReview : 拥有评论 >
+BookTitle --> ItemType
+
+LibraryItem "1" --> "*" Loan : 产生 >
+LibraryItem --> ItemStatus
+
+Loan --> LoanStatus
+Loan "1" --> "0..1" FineRecord : 产生 >
+Reservation --> ReservationStatus
+BookReview --> ReviewStatus
+
+'================ 策略依赖 =================
+BorrowPolicy ..> ReaderType : 按类型取规则 >
+FineRule ..> LibraryItem : 按 fine_category 取价 >
+FineCalculator ..> FineRule : 委托计算 >
+FineCalculator ..> FineRecord : 生成 >
+CirculationPolicyChecker ..> BorrowPolicy : 委托校验 >
+CirculationPolicyChecker ..> BorrowCard : 校验有效性 >
+
+note right of LibraryItem
+  单表继承 + 鉴别列 item_type
+  fine_category 决定罚款档位：
+  CHINESE_BOOK / FOREIGN_BOOK /
+  CHINESE_MAGAZINE / FOREIGN_MAGAZINE /
+  THESIS
+end note
+
+note bottom of Reservation
+  有效期 7 天
+  expires_at = created_at + 7 天
+  过期不排队、不阻塞续借
+end note
+
+note bottom of BookReview
+  P2：仅 APPROVED 可见
+  且计入 average_rating
+end note
+
+@enduml
