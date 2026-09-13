@@ -1,0 +1,142 @@
+@startuml
+!theme plain
+title 图书管理系统 - 包图（分层架构）
+skinparam packageStyle rectangle
+skinparam linetype ortho
+
+package "presentation 表现层" {
+  package "routers" {
+    [auth_router]
+    [catalog_router]
+    [circulation_router]
+    [reservation_router]
+    [review_router]
+    [admin_router]
+  }
+  package "core" {
+    [response 统一信封]
+    [exceptions 异常体系]
+    [security 认证依赖]
+    [config]
+  }
+  package "schemas (DTO / View)" {
+    [request DTO]
+    [response DTO]
+  }
+}
+
+package "application 应用层" {
+  [auth_service]
+  [catalog_service]
+  [circulation_service]
+  [reservation_service]
+  [review_service]
+  [admin_service]
+}
+
+package "domain 领域层" {
+  package "entities" {
+    [Account / Reader / Librarian / SystemAdmin]
+    [BorrowCard]
+    [BookTitle / LibraryItem]
+    [Loan / Reservation]
+    [FineRecord / BookReview]
+  }
+  package "policies (Strategy)" {
+    [BorrowPolicy]
+    [FineRule]
+  }
+  package "services" {
+    [FineCalculator]
+    [CirculationPolicyChecker]
+  }
+  package "repositories (接口)" {
+    [ReaderRepository]
+    [ItemRepository]
+    [LoanRepository]
+    [ReservationRepository]
+    [ReviewRepository]
+    [PolicyRepository]
+  }
+}
+
+package "infrastructure 基础设施层" {
+  package "db" {
+    [SQLAlchemy Base / Session]
+    [ORM Models (单表继承)]
+    [seed 种子数据]
+  }
+  package "repositories (实现)" {
+    [SQLAlchemy Repositories]
+  }
+  package "security" {
+    [PasswordHasher]
+    [TokenStore]
+  }
+}
+
+package "test 测试层" {
+  [unit 领域测试]
+  [integration API 测试]
+}
+
+'========== 依赖方向（自上而下） ==========
+[auth_router] --> [auth_service]
+[catalog_router] --> [catalog_service]
+[circulation_router] --> [circulation_service]
+[reservation_router] --> [reservation_service]
+[review_router] --> [review_service]
+[admin_router] --> [admin_service]
+
+[auth_router] ..> [security 认证依赖]
+[circulation_router] ..> [security 认证依赖]
+[admin_router] ..> [security 认证依赖]
+[routers] ..> [response 统一信封]
+[routers] ..> [request DTO]
+[routers] ..> [response DTO]
+
+[auth_service] --> [Account / Reader / Librarian / SystemAdmin]
+[circulation_service] --> [Loan / Reservation]
+[circulation_service] --> [CirculationPolicyChecker]
+[circulation_service] --> [BorrowPolicy]
+[circulation_service] --> [LoanRepository]
+[circulation_service] --> [ItemRepository]
+[reservation_service] --> [Loan / Reservation]
+[reservation_service] --> [ReservationRepository]
+[catalog_service] --> [BookTitle / LibraryItem]
+[catalog_service] --> [ItemRepository]
+[review_service] --> [FineRecord / BookReview]
+[review_service] --> [ReviewRepository]
+[admin_service] --> [BorrowCard]
+[admin_service] --> [PolicyRepository]
+
+[CirculationPolicyChecker] --> [BorrowPolicy]
+[FineCalculator] --> [FineRule]
+[FineCalculator] --> [BorrowPolicy]
+
+[SQLAlchemy Repositories] .up.|> [ReaderRepository] : 实现
+[SQLAlchemy Repositories] .up.|> [LoanRepository] : 实现
+[SQLAlchemy Repositories] .up.|> [ItemRepository] : 实现
+[SQLAlchemy Repositories] .up.|> [ReservationRepository] : 实现
+[SQLAlchemy Repositories] .up.|> [ReviewRepository] : 实现
+[SQLAlchemy Repositories] .up.|> [PolicyRepository] : 实现
+
+[SQLAlchemy Repositories] --> [SQLAlchemy Base / Session]
+[ORM Models (单表继承)] --> [SQLAlchemy Base / Session]
+[auth_service] ..> [PasswordHasher]
+[auth_service] ..> [TokenStore]
+
+[integration API 测试] --> [routers]
+[unit 领域测试] --> [policies (Strategy)]
+[unit 领域测试] --> [entities]
+
+note bottom of domain
+  领域层不依赖 FastAPI、
+  SQLAlchemy Session 与 HTTP 概念
+end note
+
+note right of presentation
+  Controller 不得直接依赖 Repository
+end note
+
+@enduml
