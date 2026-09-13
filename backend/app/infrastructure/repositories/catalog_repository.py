@@ -131,6 +131,24 @@ class SQLAlchemyItemRepository:
         )
         return _to_item(orm) if orm else None
 
+    def list_by_title(self, title_id: int) -> list[LibraryItem]:
+        rows = (
+            self.db.query(LibraryItemORM)
+            .filter(LibraryItemORM.title_id == title_id)
+            .all()
+        )
+        return [_to_item(r) for r in rows]
+
+    def count_available(self, title_id: int) -> int:
+        return (
+            self.db.query(LibraryItemORM)
+            .filter(
+                LibraryItemORM.title_id == title_id,
+                LibraryItemORM.status == ItemStatus.AVAILABLE.value,
+            )
+            .count()
+        )
+
     def add(self, item: LibraryItem) -> LibraryItem:
         orm = LibraryItemORM(
             barcode=item.barcode,

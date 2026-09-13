@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.infrastructure.db.base import Base
 from app.infrastructure.models import orm  # noqa: F401  确保模型被注册
+from app.infrastructure.security.password_hasher import hash_with_new_salt
 from app.infrastructure.models.orm import (
     AccountORM,
     BookTitleORM,
@@ -53,7 +54,9 @@ def seeded(db):
     db.add(FineRuleORM(item_category="FOREIGN_BOOK", grace_days=3, amount_per_day="1.00"))
     db.add(CompensationPolicyORM(item_type="BOOK", rate="2.00"))
 
-    account = AccountORM(username="zhangsan", password_hash="h", salt="s", role="reader")
+    password_hash, salt = hash_with_new_salt("123456")
+    account = AccountORM(username="zhangsan", password_hash=password_hash, salt=salt,
+                         role="reader")
     db.add(account)
     db.flush()
     reader = ReaderORM(account_id=account.id, name="张三", reader_type="UNDERGRADUATE")
