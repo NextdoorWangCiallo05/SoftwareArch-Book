@@ -22,8 +22,17 @@ from app.infrastructure.models.orm import (
 
 @pytest.fixture()
 def db():
-    """每个用例一套全新内存数据库。"""
-    engine = create_engine("sqlite:///:memory:")
+    """每个用例一套全新内存数据库。
+
+    注意：使用 StaticPool 保证同一连接，避免内存库跨连接丢表。
+    """
+    from sqlalchemy.pool import StaticPool
+
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
     yield session

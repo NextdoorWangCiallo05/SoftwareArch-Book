@@ -38,3 +38,14 @@ def verify_password(raw_password: str, salt: str, password_hash: str) -> bool:
     """常量时间比较，防止时序攻击。"""
     calc = hash_password(raw_password, salt)
     return hmac.compare_digest(calc, password_hash)
+
+
+class Pbkdf2PasswordHasher:
+    """实现领域层 PasswordHasher 协议的适配器。"""
+
+    def hash(self, raw_password: str) -> tuple[str, str]:
+        """返回 (password_hash, salt)。"""
+        return hash_with_new_salt(raw_password)
+
+    def verify(self, raw_password: str, salt: str, password_hash: str) -> bool:
+        return verify_password(raw_password, salt, password_hash)
