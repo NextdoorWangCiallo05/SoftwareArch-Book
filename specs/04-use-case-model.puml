@@ -1,0 +1,119 @@
+@startuml
+!theme plain
+title 图书管理系统 - 用例图
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+
+'========== 参与者 ==========
+actor "读者\nReader" as Reader
+actor "学生读者\nStudentReader" as StudentReader
+actor "教师读者\nTeacherReader" as TeacherReader
+actor "图书管理员\nLibrarian" as Librarian
+actor "系统管理员\nSystemAdmin" as SystemAdmin
+
+Reader <|-- StudentReader
+Reader <|-- TeacherReader
+
+'========== 系统边界 ==========
+rectangle "图书管理系统" {
+
+  '----- 认证与账户 -----
+  usecase "UC-001 注册读者账号" as UC001
+  usecase "UC-002 登录系统" as UC002
+
+  '----- 借阅证与人员维护 -----
+  usecase "UC-003 办理借阅证" as UC003
+  usecase "UC-004 注销借阅证" as UC004
+  usecase "UC-005 添加图书管理员" as UC005
+
+  '----- 馆藏管理 -----
+  usecase "UC-006 添加图书标题" as UC006
+  usecase "UC-007 添加馆藏副本" as UC007
+
+  '----- 检索与评论 -----
+  usecase "UC-008 检索图书" as UC008
+  usecase "UC-017 提交评分与评论" as UC017
+  usecase "UC-018 查看评论与平均分" as UC018
+
+  '----- 流通 -----
+  usecase "UC-009 办理借书" as UC009
+  usecase "UC-009A 验证借阅证" as UC009A
+  usecase "UC-010 办理还书" as UC010
+  usecase "UC-011 续借图书" as UC011
+  usecase "UC-012 查询借阅信息" as UC012
+  usecase "UC-013 预约图书" as UC013
+  usecase "UC-014 取消预约" as UC014
+
+  '----- 罚款与规则 -----
+  usecase "UC-015 计算超期罚款" as UC015
+  usecase "UC-016 标记罚款缴清" as UC016
+  usecase "UC-019 维护借阅规则" as UC019
+  usecase "UC-020 维护罚款规则" as UC020
+  usecase "UC-021 审核图书评论" as UC021
+}
+
+'========== 参与者与用例关系 ==========
+Reader --> UC001
+Reader --> UC002
+Reader --> UC008
+Reader --> UC011
+Reader --> UC012
+Reader --> UC013
+Reader --> UC014
+Reader --> UC017
+Reader --> UC018
+
+Librarian --> UC002
+Librarian --> UC008
+Librarian --> UC009
+Librarian --> UC010
+Librarian --> UC011
+Librarian --> UC012
+Librarian --> UC016
+
+SystemAdmin --> UC002
+SystemAdmin --> UC003
+SystemAdmin --> UC004
+SystemAdmin --> UC005
+SystemAdmin --> UC006
+SystemAdmin --> UC007
+SystemAdmin --> UC019
+SystemAdmin --> UC020
+SystemAdmin --> UC021
+
+'========== include / extend ==========
+UC009 ..> UC002 : <<include>>
+UC009 ..> UC009A : <<include>>
+UC010 ..> UC002 : <<include>>
+UC010 ..> UC015 : <<include>>
+UC013 ..> UC002 : <<include>>
+UC017 ..> UC002 : <<include>>
+
+UC013 ..> UC009 : <<extend>>\n(图书不可借时转为预约)
+
+note right of UC015
+  由还书流程自动触发：
+  overdue_days > 0 时
+  按借出物类型罚款规则计算
+end note
+
+note bottom of UC011
+  P2 第二阶段：
+  仅 BORROWED 且未逾期、
+  无他人预约、次数未满可续借
+end note
+
+note bottom of UC017
+  P2 第二阶段：评分 1-5
+  同一读者对同一标题保留一条
+  提交后为 PENDING，需审核
+end note
+
+note right of UC013
+  预约有效期 7 天：
+  expires_at = created_at + 7 天
+  过期置为 EXPIRED，不再排队
+end note
+
+@enduml
