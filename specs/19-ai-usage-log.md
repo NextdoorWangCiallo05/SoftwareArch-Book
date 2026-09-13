@@ -261,3 +261,38 @@ CodeBuddy
 
 ### Git 提交
 `revise specs according to lab manual: associate reader type and fine grace period`
+
+---
+
+## 第 9 次使用
+
+### 使用工具
+CodeBuddy + Git
+
+### 使用阶段
+详细设计 / 版本管理
+
+### 输入 Prompt 摘要
+"git 换成我自己的用户；建立仓库 SoftwareArch-Book"；随后继续完成实验二详细设计 Specs。
+
+### Agent 修改文件
+- `specs/09-design-model.md`（新建：分析类 → 设计类两步走、关键算法、用例 × 设计元素映射、设计模式落点）
+- `specs/10-sequence-borrow-book.puml`、`11-sequence-return-book.puml`、`12-sequence-reserve-book.puml`（新建）
+- `specs/14-api-spec.md`（新建：26 个接口）
+- `specs/15-test-plan.md`（新建：16 个单元测试 + 68 个集成测试）
+- `specs/16-tasks.md`（新建：TASK-001～016）
+- `specs/19-ai-usage-log.md`（本记录）
+
+### 输出摘要
+- 详细设计采用指导书推荐的**两步走**：先分析类（不含界面与持久化），再增强为设计类（Controller / Service / Repository / DTO）；
+- 关键算法以伪代码固定：密码 PBKDF2-HMAC-SHA256（12 万次迭代 + 随机盐）、令牌 `secrets.token_urlsafe(32)`（8 小时）、借书四项前置校验、还书罚款含宽限期 `max(0, overdue - grace) × amount`、续借以原 `due_date` 为基数、预约排队与 7 天有效期惰性失效、评论平均分仅统计 APPROVED；
+- 仓库关联 GitHub：`origin = https://github.com/NextdoorWangCiallo05/SoftwareArch-Book.git`，主分支 `main`，已推送 17 个提交与 `experiment1-specs-baseline-v1` 标签。
+
+### 人工审查结果
+待审查（`18-review-checklist.md` 的实验二部分待补充）
+
+### 测试结果
+不适用（尚无代码）
+
+### Git 提交
+`baseline experiment 2 detailed design specs`
