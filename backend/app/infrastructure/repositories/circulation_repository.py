@@ -156,6 +156,14 @@ class SQLAlchemyFineRepository:
             > 0
         )
 
+    def save(self, fine: FineRecord) -> FineRecord:
+        orm = self.db.query(FineRecordORM).filter(FineRecordORM.id == fine.id).first()
+        if orm is None:
+            raise ValueError("罚款记录不存在")
+        orm.paid = fine.paid
+        self.db.flush()
+        return fine
+
 
 class SQLAlchemyLostRepository:
     def __init__(self, db: Session):
@@ -186,3 +194,11 @@ class SQLAlchemyLostRepository:
             .count()
             > 0
         )
+
+    def save(self, lost: LostItem) -> LostItem:
+        orm = self.db.query(LostItemORM).filter(LostItemORM.id == lost.id).first()
+        if orm is None:
+            raise ValueError("赔偿记录不存在")
+        orm.paid = lost.paid
+        self.db.flush()
+        return lost

@@ -89,6 +89,21 @@ class SQLAlchemyReservationRepository:
             .count()
         )
 
+    def count_effective_by_others(
+        self, title_id: int, reader_id: int, today: date
+    ) -> int:
+        """统计同一标题下**其他读者**的有效预约数量（用于续借阻塞判定）。"""
+        return (
+            self.db.query(ReservationORM)
+            .filter(
+                ReservationORM.title_id == title_id,
+                ReservationORM.reader_id != reader_id,
+                ReservationORM.status == ReservationStatus.ACTIVE.value,
+                ReservationORM.expires_at >= today,
+            )
+            .count()
+        )
+
     def list_by_title(self, title_id: int) -> list[Reservation]:
         rows = (
             self.db.query(ReservationORM)

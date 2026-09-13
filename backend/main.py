@@ -23,6 +23,7 @@ from app.infrastructure.db.seed import init_database
 from app.presentation.routers.admin_router import router as admin_router
 from app.presentation.routers.auth_router import router as auth_router
 from app.presentation.routers.catalog_router import router as catalog_router
+from app.presentation.routers.circulation_router import router as circulation_router
 from app.presentation.routers.system_router import router as system_router
 
 app = FastAPI(title="图书管理系统 - 原子能力API", version="2.0.0")
@@ -30,6 +31,7 @@ app = FastAPI(title="图书管理系统 - 原子能力API", version="2.0.0")
 app.include_router(system_router)
 app.include_router(auth_router)
 app.include_router(catalog_router)
+app.include_router(circulation_router)
 app.include_router(admin_router)
 
 
