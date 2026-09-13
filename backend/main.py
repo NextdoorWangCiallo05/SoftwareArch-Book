@@ -1,28 +1,54 @@
-"""
-图书管理系统 - 后端服务入口
+"""图书管理系统 - 后端服务入口。
+
+负责装配 FastAPI 应用：注册路由、注册全局异常处理器。
+业务实现分布在 app 的四层结构中（presentation / application / domain / infrastructure）。
 """
 
 import sys
 
-# Windows 控制台默认 GBK，重设为 UTF-8 避免中文/emoji 打印崩溃
+# Windows 控制台默认 GBK，重设为 UTF-8 避免中文打印崩溃
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
     pass
 
-from app.models import init_database
-from app.routes import start_server
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+from app.core.config import API_PORT
+from app.core.exceptions import AppError
+from app.core.response import envelope
+from app.infrastructure.db.seed import init_database
+from app.presentation.routers.system_router import router as system_router
+
+app = FastAPI(title="图书管理系统 - 原子能力API", version="2.0.0")
+
+app.include_router(system_router)
+
+
+@app.exception_handler(AppError)
+async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
+    """将领域/应用层异常统一转换为响应信封。"""
+    return JSONResponse(
+        status_code=exc.code,
+        content=envelope(exc.code, exc.message),
+    )
+
+
+def start_server(port: int = API_PORT) -> None:
+    """启动服务。"""
+    import uvicorn
+
+    print("正在启动图书管理系统API服务...")
+    print(f"API文档地址：http://localhost:{port}/docs")
+    uvicorn.run(app, host="0.0.0.0", port=port)
+
 
 if __name__ == "__main__":
     print("=" * 50)
     print("  图书管理系统 - 原子能力API服务")
     print("=" * 50)
-
-    # 初始化数据库
     print("\n[init] 正在初始化数据库...")
     init_database()
-    print("[init] 数据库初始化完成\n")
-
-    # 启动服务（端口 8001，避开被外部服务占用的 8000）
-    start_server(port=8001)
+    start_server()
