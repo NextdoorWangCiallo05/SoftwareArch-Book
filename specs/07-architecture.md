@@ -244,3 +244,34 @@ backend/
 | ADR-04 | 令牌存服务端映射而非 JWT | 免第三方依赖，符合"不强制完整 OAuth/JWT"的教学定位 |
 | ADR-05 | 跨聚合只引用 ID | 避免大聚合，控制事务范围 |
 | ADR-06 | 预约失效采用读取时惰性判定 | 无需定时任务，教学项目复杂度可控 |
+| ADR-07 | 借阅/罚款/赔偿规则用**可配置策略表**替代参考类图的策略继承体系 | 规则可运行时调整，无需新增子类；语义等价于「本科生借书策略 / 研究生借杂志策略 / 书到期策略 / 杂志到期策略 / 图书赔偿策略 / 杂志赔偿策略」 |
+
+---
+
+## 12. 与指导书参考架构的映射
+
+指导书提供的参考架构为 Java Web 技术栈（Dispatcher + JSP/Velocity + Hibernate），本项目为 Python FastAPI。二者是**同一套分层思想的不同技术实现**，映射如下：
+
+| 参考架构（图 7 / 图 8） | 本项目实现 | 说明 |
+|---|---|---|
+| Dispatcher | FastAPI 路由分发（`app.main` 的 router 注册） | 请求入口与分发 |
+| Controller | `presentation/routers/*` | 只接收请求、调用服务、返回响应 |
+| Model Bean | `schemas/*`（Pydantic DTO） | 数据承载与校验 |
+| View（JSP / Velocity） | JSON 响应 + OpenAPI 文档 + 对话式 Agent 入口 | 表现层 |
+| Service Layer | `application/*_service.py` | 用例编排与事务边界 |
+| Persistence Layer / DAO | `infrastructure/repositories/*` + ORM 模型 | 持久化 |
+| Hibernate 持久化对象 | SQLAlchemy ORM 模型（单表继承） | 对象-关系映射 |
+| RDBMS | SQLite | 数据库 |
+
+**与参考类图（图 6）的对应关系**
+
+| 参考类图 | 本项目 |
+|---|---|
+| 借阅者 / 本科生 / 研究生（继承） | `Reader` / `StudentReader` / `TeacherReader`（单表继承 + `reader_type`） |
+| 书目 / 书籍 / 杂志（继承） | `BookTitle` / `Book` / `Magazine` / `Thesis` |
+| 书项（librarycode） | `LibraryItem.barcode` |
+| 丢失书项 | `LostItem` |
+| 借书策略 / 借杂志策略（按读者类型继承） | `BorrowPolicy`（`(reader_type, item_type)` 二维策略表） |
+| 书到期策略 / 杂志到期策略 | `BorrowPolicy.borrow_days`（含出借物维度） |
+| 书籍罚款策略 / 杂志罚款策略 | `FineRule`（`grace_days` + `amount_per_day`） |
+| 图书赔偿策略 / 杂志赔偿策略 | `CompensationPolicy`（`rate`） |

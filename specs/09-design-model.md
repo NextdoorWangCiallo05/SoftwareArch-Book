@@ -130,7 +130,8 @@ def borrow(card_no: str, barcode: str, operator: Account) -> BorrowResultDTO:
 
     checker.check_before_borrow(reader, item)           # 四项前置校验，见 4.3
 
-    due = today + timedelta(days=policy.get_borrow_days(reader.reader_type))
+    # 二维策略：先 (reader_type, item_type) 精确匹配，未命中回退 (reader_type, ALL)
+    due = today + timedelta(days=policy.get_borrow_days(reader.reader_type, item.item_type))
     loan = Loan(reader_id=reader.id, item_id=item.id,
                 borrow_date=today, due_date=due, status=BORROWED, renew_count=0)
     item.mark_borrowed()                                # AVAILABLE → BORROWED
@@ -144,8 +145,8 @@ def borrow(card_no: str, barcode: str, operator: Account) -> BorrowResultDTO:
 
 ```python
 def check_before_borrow(reader, item) -> None:
-    policy = policy_repo.get(reader.reader_type)
-    active = loan_repo.count_active(reader.id)
+    policy = policy_repo.get(reader.reader_type, item.item_type)   # 二维，未命中回退 ALL
+    active = loan_repo.count_active(reader.id, item.item_type)
     if active >= policy.max_borrow_count:
         raise BusinessError(f"借阅已满（{active}/{policy.max_borrow_count}），请先归还图书")
     if loan_repo.count_overdue(reader.id) > 0:
@@ -203,7 +204,8 @@ def renew(self, policy, has_other_active_reservation: bool, today) -> date:
     if self.renew_count >= 1:    raise BusinessError("该图书已达续借上限（1 次）")
     if has_other_active_reservation:
         raise BusinessError("该图书已被预约，暂不可续借")
-    self.due_date = self.due_date + timedelta(days=policy.get_borrow_days(reader_type))
+    self.due_date = self.due_date + timedelta(
+        days=policy.get_borrow_days(reader_type, self.item.item_type))  # 二维策略
     self.renew_count += 1
     return self.due_date
 ```
@@ -262,6 +264,32 @@ def list_approved(title_id):
 
 写入前校验：`max_borrow_count > 0`、`borrow_days > 0`、`amount_per_day >= 0`、`grace_days >= 0`；非法值抛 `BusinessError`。修改**仅对新借阅生效**，已有 Loan 的 `due_date` 不变。
 
+### 4.9 登记丢失与赔偿（UC-022）
+
+```python
+def report_lost(barcode: str, operator: Account) -> LostResultDTO:
+    require(operator.has_role(LIBRARIAN))                 # 否则 403
+
+    item = item_repo.find_by_barcode(barcode)
+    if item is None:      raise NotFoundError("馆藏不存在")
+    loan = loan_repo.find_active_by_item(item.id)
+    if loan is None:      raise BusinessError("未找到该馆藏的借阅记录")
+
+    title = title_repo.get(item.title_id)
+    if title.price is None:
+        raise BusinessError("请先维护该图书定价")            # BR-018a
+
+    amount = compensation_policy.calculate_compensation(item.item_type, title.price)
+    lost = LostItem(loan_id=loan.id, item_id=item.id,
+                    lost_date=today, amount=amount, paid=False)
+    loan.close_as_lost()                                   # 结束借阅
+    item.mark_removed()                                    # 丢失副本不可再借
+    lost_repo.add(lost)                                    # 同一事务
+    return LostResultDTO(...)
+```
+
+赔偿倍率由 `CompensationPolicy` 提供（`BOOK=2.0`、`MAGAZINE=1.5`、`THESIS=3.0`），可配置，禁止硬编码。
+
 ---
 
 ## 5. 用例 × 设计元素映射
@@ -289,6 +317,10 @@ def list_approved(title_id):
 | UC-019 借阅规则 | admin_router | `AdminService.upsert_borrow_policy` | `BorrowPolicy` | PolicyRepo | `PolicyRequest` | `PolicyDTO` | Permission/Business | 写 |
 | UC-020 罚款规则 | admin_router | `AdminService.upsert_fine_rule` | `FineRule` | PolicyRepo | `FineRuleRequest` | `FineRuleDTO` | Permission/Business | 写 |
 | UC-021 审核评论 | review_router | `ReviewService.moderate` | `BookReview` | ReviewRepo | `ModerateRequest` | `ReviewDTO` | Permission/NotFound/Business | 写 |
+| UC-022 处理赔偿 | circulation_router | `CirculationService.report_lost` | `LostItem`、`CompensationPolicy` | ItemRepo、LoanRepo、LostRepo、PolicyRepo | `LostRequest` | `LostResultDTO` | Permission/NotFound/Business | **写（同一事务）** |
+| UC-023 管理借阅者 | admin_router | `AdminService.manage_reader` | `Account`、`Reader` | ReaderRepo | `ReaderManageRequest` | `ReaderDTO` / `ReaderListDTO` | Permission/NotFound/Business | 写 |
+| UC-024 管理图书管理员 | admin_router | `AdminService.manage_librarian` | `Librarian` | LibrarianRepo | `StaffManageRequest` | `StaffDTO` / `StaffListDTO` | Permission/NotFound/Business | 写 |
+| UC-025 修改图书信息 | admin_router | `AdminService.update_title` | `BookTitle` | TitleRepo | `TitleUpdateRequest` | `TitleDTO` | Permission/NotFound/Business | 写 |
 
 ---
 

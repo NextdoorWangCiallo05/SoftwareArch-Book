@@ -296,3 +296,41 @@ CodeBuddy + Git
 
 ### Git 提交
 `baseline experiment 2 detailed design specs`
+
+---
+
+## 第 10 次使用
+
+### 使用工具
+CodeBuddy
+
+### 使用阶段
+需求与设计修订（对照指导书参考图）
+
+### 输入 Prompt 摘要
+提供指导书中的 9 张参考图（用例图、借出书目结构化规格、领域类图、MVC 架构图、数据库 ER），要求对照检查并完善。
+
+### Agent 修改文件
+- `specs/00-project-brief.md`、`specs/02-requirements.md`：借阅规则扩展为 `(reader_type, item_type)` 二维；新增 FR-027 处理赔偿、FR-028 管理借阅者、FR-029 管理图书管理员、FR-030 修改图书信息；新增 BR-018a 赔偿规则；BR-006 扩展为含未缴赔偿
+- `specs/03-use-cases.md`：新增 UC-022～UC-025；UC-009 补「结构化规格」（基本路径 7 步 + 4a/6a/6b/6c/6d/1a 异常路径，对齐参考格式）
+- `specs/04-use-case-model.puml`、`specs/06-domain-class-diagram.puml`：新增用例与 `LostItem`、`CompensationPolicy` 类
+- `specs/05-domain-model.md`：新增 `LostItem`、`CompensationPolicy`；`BorrowPolicy` 改为二维
+- `specs/07-architecture.md`：新增第 12 节「与指导书参考架构的映射」（Dispatcher/Controller/Service/DAO 对照表 + 参考类图策略体系对照表）、ADR-07
+- `specs/09-design-model.md`：算法加二维策略与赔偿伪代码；用例映射加 4 行
+- `specs/13-database-design.md`：`borrow_policies` 加 `item_type` 二维键；新增 `lost_items`、`compensation_policies` 表
+- `specs/14-api-spec.md`：新增 3.6 登记丢失、3.7 缴清赔偿
+- `specs/15-test-plan.md`：新增 TC-026A～026D（二维策略）、TC-069～TC-082（赔偿与管理）
+- `specs/16-tasks.md`：TASK-004 加二维策略；TASK-008 加管理功能；TASK-010 纳入赔偿
+- `specs/19-ai-usage-log.md`（本记录）
+
+### 输出摘要
+对照 9 张参考图识别出 3 个缺口并全部补齐：① 处理赔偿 / 丢失书项（参考图 1/6/9 有，指导书正文未提）；② 管理借阅者、管理图书管理员、修改图书（参考图 1）；③ 借阅期限的出借物维度（参考类图的「书到期策略 / 杂志到期策略」）。另补齐 2 项文档形式：用例结构化规格、与参考架构的映射对照表。
+
+### 人工审查结果
+待审查
+
+### 测试结果
+不适用（尚无代码）
+
+### Git 提交
+`revise specs after comparing with lab manual reference diagrams`

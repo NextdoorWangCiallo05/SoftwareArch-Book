@@ -10,9 +10,9 @@
 
 | 类别 | 对象 |
 |---|---|
-| 实体（Entity） | `Account`、`Reader` / `StudentReader` / `TeacherReader`、`Librarian`、`SystemAdmin`、`BorrowCard`、`BookTitle`、`LibraryItem` / `Book` / `Magazine` / `Thesis`、`Loan`、`Reservation`、`FineRecord`、`BookReview` |
+| 实体（Entity） | `Account`、`Reader` / `StudentReader` / `TeacherReader`、`Librarian`、`SystemAdmin`、`BorrowCard`、`BookTitle`、`LibraryItem` / `Book` / `Magazine` / `Thesis`、`Loan`、`Reservation`、`FineRecord`、`LostItem`、`BookReview` |
 | 值对象 / 枚举 | `Role`、`ReaderType`、`ItemType`、`ItemStatus`、`LoanStatus`、`CardStatus`、`ReservationStatus`、`ReviewStatus` |
-| 策略对象（Strategy） | `BorrowPolicy`、`FineRule` |
+| 策略对象（Strategy） | `BorrowPolicy`（二维）、`FineRule`（含宽限期）、`CompensationPolicy` |
 | 领域服务 | `CirculationPolicyChecker`、`FineCalculator` |
 | 仓储接口（领域层声明） | `ReaderRepository`、`ItemRepository`、`LoanRepository`、`ReservationRepository`、`FineRepository`、`ReviewRepository`、`PolicyRepository` |
 
@@ -161,13 +161,16 @@
 
 ### 6.1 BorrowPolicy（借阅规则 · 策略对象）
 
-- **职责**：按读者类型提供"最大借阅数量"与"借阅期限"，集中承载 BR-002 / BR-004。
-- **关键属性**：`reader_type`、`max_borrow_count`、`borrow_days`
+- **职责**：按 **`(reader_type, item_type)` 二维策略键**提供"最大借阅数量"与"借阅期限"，集中承载 BR-002 / BR-004。
+  语义等价于指导书参考类图中的"本科生借书策略 / 研究生借书策略 / 本科生借杂志策略 / 研究生杂志借阅策略"与"书到期策略 / 杂志到期策略"，本系统以**可配置策略表 + 策略对象**实现，规则可运行时调整，无需新增子类。
+- **关键属性**：`reader_type`、`item_type`（`ALL | BOOK | MAGAZINE | THESIS`）、`max_borrow_count`、`borrow_days`
 - **关键方法**：
-  - `get_max_borrow_count(reader_type) -> int`
-  - `get_borrow_days(reader_type) -> int`
-  - `can_borrow(reader, active_loan_count) -> (bool, reason)`
-- **约束**：规则**可配置**（FR-025 持久化），禁止硬编码在 Controller 或路由中（宪法第 8 条）。
+  - `get_max_borrow_count(reader_type, item_type) -> int`
+  - `get_borrow_days(reader_type, item_type) -> int`
+  - `can_borrow(reader, item_type, active_loan_count) -> (bool, reason)`
+- **约束**：
+  - 查找顺序：先按 `(reader_type, item_type)` 精确匹配，未命中则回退 `(reader_type, ALL)`；
+  - 规则**可配置**（FR-025 持久化），禁止硬编码在 Controller 或路由中（宪法第 8 条）。
 
 ### 6.2 FineRule（罚款规则 · 策略对象）
 
@@ -204,6 +207,23 @@
 - **关键属性**：`id`、`loan_id`、`amount`、`paid`、`created_at`、`paid_at`
 - **关键方法**：`mark_paid()`
 - **约束**：`amount` 保留 2 位小数；已缴清不可重复缴纳；存在 `paid = false` 的记录时禁止借书（BR-006）。
+
+### 7.2 LostItem（丢失与赔偿 · 实体）
+
+- **职责**：记录馆藏遗失事件与赔偿金额（对应参考类图的「丢失书项」）。
+- **关键属性**：`id`、`loan_id`、`item_id`、`lost_date`、`amount`、`paid`、`paid_at`
+- **关键方法**：`mark_paid()`
+- **约束**：
+  - 赔偿金额由 `CompensationPolicy` 计算，实体不自行计算；
+  - 登记丢失后对应 `LibraryItem` 状态置为 `REMOVED`，不再可借；
+  - 存在未缴赔偿时禁止借书（BR-006）。
+
+### 7.3 CompensationPolicy（赔偿规则 · 策略对象）
+
+- **职责**：按出借物类型提供赔偿倍率（对应参考类图的「图书赔偿策略 / 杂志赔偿策略」）。
+- **关键属性**：`item_type`、`rate`
+- **关键方法**：`calculate_compensation(item_type, price) -> Decimal`
+- **约束**：`amount = price × rate`（`BOOK=2.0`、`MAGAZINE=1.5`、`THESIS=3.0`）；定价缺失时抛 `BusinessError`；倍率可配置，禁止硬编码。
 
 ---
 

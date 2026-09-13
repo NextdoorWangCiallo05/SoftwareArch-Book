@@ -51,6 +51,10 @@ rectangle "图书管理系统" {
   usecase "UC-019 维护借阅规则" as UC019
   usecase "UC-020 维护罚款规则" as UC020
   usecase "UC-021 审核图书评论" as UC021
+  usecase "UC-022 处理赔偿" as UC022
+  usecase "UC-023 管理借阅者" as UC023
+  usecase "UC-024 管理图书管理员" as UC024
+  usecase "UC-025 修改图书信息" as UC025
 }
 
 '========== 参与者与用例关系 ==========
@@ -71,6 +75,7 @@ Librarian --> UC010
 Librarian --> UC011
 Librarian --> UC012
 Librarian --> UC016
+Librarian --> UC022
 
 SystemAdmin --> UC002
 SystemAdmin --> UC003
@@ -81,6 +86,9 @@ SystemAdmin --> UC007
 SystemAdmin --> UC019
 SystemAdmin --> UC020
 SystemAdmin --> UC021
+SystemAdmin --> UC023
+SystemAdmin --> UC024
+SystemAdmin --> UC025
 
 '========== include / extend ==========
 UC009 ..> UC002 : <<include>>

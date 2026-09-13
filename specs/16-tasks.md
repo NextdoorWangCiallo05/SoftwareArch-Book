@@ -51,7 +51,7 @@
 - **输入规格**：`05-domain-model.md`、`09-design-model.md` 第 4 节、`02-requirements.md` BR-002/004/005
 - **允许修改**：`backend/app/domain/policies/**`、`domain/services/**`、`domain/repositories/**`（接口声明）
 - **禁止修改**：`specs/**`
-- **实现要求**：罚款公式 `max(0, 逾期天数 - grace_days) × amount_per_day`；禁止硬编码单价与数量。
+- **实现要求**：罚款公式 `max(0, 逾期天数 - grace_days) × amount_per_day`；禁止硬编码单价与数量；`BorrowPolicy` 采用 **`(reader_type, item_type)` 二维键**，未命中回退 `(reader_type, ALL)`。
 - **验收**：策略可从配置读取；宽限期内返回 0。
 - **建议测试**：UT-001～UT-008。
 
@@ -91,9 +91,11 @@
 - **输入规格**：`14-api-spec.md` 6.1～6.4、`03-use-cases.md` UC-003/004/005
 - **允许修改**：`application/admin_service.py`、`presentation/routers/admin_router.py`
 - **禁止修改**：`specs/**`
-- **实现要求**：证号 `CARD+年份+6位序号`；注销校验无未归还；仅 SystemAdmin。
-- **验收**：TC-007～TC-012 通过。
-- **建议测试**：TC-007～TC-012。
+- **实现要求**：
+  - 证号 `CARD+年份+6位序号`；注销校验无未归还；仅 SystemAdmin；
+  - 补充 FR-028 读者增删改查（删除=停用）、FR-029 管理员查询与修改、FR-030 修改图书信息（ISBN 不可改）。
+- **验收**：TC-007～TC-012、TC-077～TC-082 通过。
+- **建议测试**：TC-007～TC-012、TC-077～TC-082。
 
 ## TASK-009 办理借书
 
@@ -105,9 +107,9 @@
 - **验收**：TC-017～TC-026 通过。
 - **建议测试**：TC-017～TC-026。
 
-## TASK-010 办理还书与超期罚款
+## TASK-010 办理还书、超期罚款与赔偿
 
-- **目标**：实现 FR-015、FR-020、FR-021（UC-010、UC-015、UC-016）。
+- **目标**：实现 FR-015、FR-020、FR-021、**FR-027**（UC-010、UC-015、UC-016、UC-022）。
 - **输入规格**：`09-design-model.md` 4.4、`11-sequence-return-book.puml`
 - **允许修改**：`application/circulation_service.py`、`domain/services/fine_calculator.py`、路由与 schemas
 - **禁止修改**：`specs/**`

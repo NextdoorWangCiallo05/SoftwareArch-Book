@@ -57,7 +57,7 @@ end
 == 4. 借书前置校验（BR-001 ~ BR-006） ==
 
 Svc -> Checker : check_before_borrow(reader, item)
-Checker -> Policy : get_max_borrow_count(reader_type)
+Checker -> Policy : get_max_borrow_count(reader_type, item_type)
 Policy --> Checker : max_borrow_count
 Checker -> LoanRepo : count_active(reader_id)
 LoanRepo --> Checker : active_count
@@ -89,7 +89,7 @@ end
 
 == 5. 创建借阅记录（同一事务） ==
 
-Svc -> Policy : get_borrow_days(reader_type)
+Svc -> Policy : get_borrow_days(reader_type, item_type)
 Policy --> Svc : borrow_days
 Svc -> Loan : create(reader, item, due_date = today + borrow_days)
 activate Loan

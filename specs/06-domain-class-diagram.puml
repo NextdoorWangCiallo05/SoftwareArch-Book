@@ -212,6 +212,18 @@ package "罚款" {
     --
     + mark_paid(): void
   }
+
+  class LostItem {
+    - id: Long
+    - loan_id: Long
+    - item_id: Long
+    - lost_date: Date
+    - amount: Decimal
+    - paid: Boolean
+    - paid_at: DateTime
+    --
+    + mark_paid(): void
+  }
 }
 
 '================ 评论 =================
@@ -237,12 +249,13 @@ package "评论与评分 (P2)" {
 package "规则、策略与领域服务" {
   class BorrowPolicy {
     - reader_type: ReaderType
+    - item_type: ItemType
     - max_borrow_count: Integer
     - borrow_days: Integer
     --
-    + get_max_borrow_count(t: ReaderType): Integer
-    + get_borrow_days(t: ReaderType): Integer
-    + can_borrow(r: Reader, active: Integer): bool
+    + get_max_borrow_count(t: ReaderType, i: ItemType): Integer
+    + get_borrow_days(t: ReaderType, i: ItemType): Integer
+    + can_borrow(r: Reader, i: ItemType, active: Integer): bool
   }
 
   class FineRule {
@@ -257,6 +270,13 @@ package "规则、策略与领域服务" {
   class FineCalculator {
     --
     + calculate(loan: Loan, return_date: Date): FineRecord
+  }
+
+  class CompensationPolicy {
+    - item_type: ItemType
+    - rate: Decimal
+    --
+    + calculate_compensation(t: ItemType, price: Decimal): Decimal
   }
 
   class CirculationPolicyChecker {
@@ -296,6 +316,8 @@ LibraryItem --> ItemStatus
 
 Loan --> LoanStatus
 Loan "1" --> "0..1" FineRecord : 产生 >
+Loan "1" --> "0..1" LostItem : 丢失产生 >
+LibraryItem "1" --> "0..1" LostItem : 涉及 >
 Reservation --> ReservationStatus
 BookReview --> ReviewStatus
 

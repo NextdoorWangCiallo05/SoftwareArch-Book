@@ -148,6 +148,27 @@ POST /api/circulation/fines/{fine_id}/pay
 失败：403 非管理员；404 罚款记录不存在；400 该罚款已缴清
 ```
 
+### 3.6 登记丢失与赔偿
+
+```text
+POST /api/circulation/lost
+权限：管理员
+请求：{ "barcode": "ITEM2026000001" }
+响应：200 data: { "lost_id": 1, "loan_id": 1, "title": "三体",
+                 "amount": 79.60, "lost_date": "2026-09-13" }
+失败：403 非管理员；404 馆藏不存在
+      400 未找到该馆藏的借阅记录 / 请先维护该图书定价
+```
+
+### 3.7 缴清赔偿
+
+```text
+POST /api/circulation/lost/{lost_id}/pay
+权限：管理员
+响应：200 data: { "lost_id": 1, "amount": 79.60, "paid": true, "paid_at": "..." }
+失败：403 非管理员；404 赔偿记录不存在；400 该赔偿已缴清
+```
+
 ---
 
 ## 4. 预约
@@ -223,7 +244,7 @@ POST /api/reviews/{review_id}/moderate
 | 6.6 | `POST /api/admin/titles/{id}/deactivate` | 系统管理员 | — | `title_id`, `is_active=false` | 404；400 存在未归还副本 |
 | 6.7 | `POST /api/admin/items` | 系统管理员 | `{title_id, count, location, fine_category}` | `items:[{barcode}]` | 404 标题不存在 |
 | 6.8 | `POST /api/admin/items/{id}/remove` | 系统管理员 | — | `item_id`, `status=REMOVED` | 404；400 副本在借中 |
-| 6.9 | `PUT /api/admin/policies/borrow` | 系统管理员 | `{reader_type, max_borrow_count, borrow_days}` | `reader_type`,`max_borrow_count`,`borrow_days` | 400 数值非法 |
+| 6.9 | `PUT /api/admin/policies/borrow` | 系统管理员 | `{reader_type, item_type, max_borrow_count, borrow_days}` | `reader_type`,`item_type`,`max_borrow_count`,`borrow_days` | 400 数值非法 |
 | 6.10 | `PUT /api/admin/policies/fine` | 系统管理员 | `{item_category, grace_days, amount_per_day}` | `item_category`,`grace_days`,`amount_per_day` | 400 数值非法 |
 
 ---

@@ -25,6 +25,8 @@
 | 12 | `borrow_policies` | 借阅规则（策略配置） |
 | 13 | `fine_rules` | 罚款规则（策略配置） |
 | 14 | `book_reviews` | 图书评论与评分 |
+| 15 | `lost_items` | 丢失与赔偿记录 |
+| 16 | `compensation_policies` | 赔偿策略（倍率） |
 
 ---
 
@@ -177,11 +179,18 @@
 | 字段 | 类型 | 空 | 键 | 默认 | 说明 |
 |---|---|---|---|---|---|
 | id | INTEGER | N | PK | 自增 | |
-| reader_type | VARCHAR(20) | N | UNIQUE | — | UNDERGRADUATE / GRADUATE / DOCTOR / TEACHER |
+| reader_type | VARCHAR(20) | N | UNIQUE | — | ASSOCIATE / UNDERGRADUATE / GRADUATE / DOCTOR / TEACHER |
+| item_type | VARCHAR(20) | N | UNIQUE | 'ALL' | ALL / BOOK / MAGAZINE / THESIS（二维策略键） |
 | max_borrow_count | INTEGER | N | | — | 最大借阅数量 |
 | borrow_days | INTEGER | N | | — | 借阅期限（天） |
 
-**初始数据**：`(ASSOCIATE,3,30)`、`(UNDERGRADUATE,5,30)`、`(GRADUATE,10,60)`、`(DOCTOR,15,90)`、`(TEACHER,20,90)`
+**唯一约束**：`UNIQUE(reader_type, item_type)`
+
+**初始数据（主规则）**：`(ASSOCIATE,ALL,3,30)`、`(UNDERGRADUATE,ALL,5,30)`、`(GRADUATE,ALL,10,60)`、`(DOCTOR,ALL,15,90)`、`(TEACHER,ALL,20,90)`
+
+**初始数据（出借物维度覆盖）**：`(ASSOCIATE,MAGAZINE,2,7)`、`(UNDERGRADUATE,MAGAZINE,2,7)`、`(GRADUATE,MAGAZINE,2,7)`、`(DOCTOR,MAGAZINE,2,7)`、`(TEACHER,MAGAZINE,2,7)`、`(ASSOCIATE,THESIS,2,3)`、`(UNDERGRADUATE,THESIS,2,3)`、`(GRADUATE,THESIS,2,3)`、`(DOCTOR,THESIS,2,3)`、`(TEACHER,THESIS,2,3)`
+
+> 查找顺序：先按 `(reader_type, item_type)` 精确匹配，未命中回退 `(reader_type, 'ALL')`。
 
 ### 2.13 fine_rules（罚款规则）
 
@@ -209,6 +218,28 @@
 
 > **唯一约束**：`UNIQUE(title_id, reader_id)` —— 同一读者对同一标题仅一条（BR-014）。
 
+### 2.15 lost_items（丢失与赔偿记录）
+
+| 字段 | 类型 | 空 | 键 | 默认 | 说明 |
+|---|---|---|---|---|---|
+| id | INTEGER | N | PK | 自增 | |
+| loan_id | INTEGER | N | FK→loans.id, IDX | — | 关联的借阅记录 |
+| item_id | INTEGER | N | FK→library_items.id | — | 丢失的馆藏副本 |
+| lost_date | DATE | N | | — | 登记丢失日期 |
+| amount | NUMERIC(10,2) | N | | — | 赔偿金额 = 定价 × 倍率 |
+| paid | BOOLEAN | N | | 0 | 是否已缴 |
+| paid_at | DATETIME | Y | | NULL | 缴清时间 |
+
+### 2.16 compensation_policies（赔偿策略）
+
+| 字段 | 类型 | 空 | 键 | 默认 | 说明 |
+|---|---|---|---|---|---|
+| id | INTEGER | N | PK | 自增 | |
+| item_type | VARCHAR(20) | N | UNIQUE | — | BOOK / MAGAZINE / THESIS |
+| rate | NUMERIC(4,2) | N | | — | 赔偿倍率 |
+
+**初始数据**：`BOOK 2.00`、`MAGAZINE 1.50`、`THESIS 3.00`
+
 ---
 
 ## 3. ER 关系总览
@@ -227,6 +258,8 @@ book_titles 1 ── * reservations
 book_titles 1 ── * book_reviews
 library_items 1 ── * loans
 loans 1 ── 0..1 fine_records
+loans 1 ── 0..1 lost_items
+library_items 1 ── 0..1 lost_items
 ```
 
 ---
