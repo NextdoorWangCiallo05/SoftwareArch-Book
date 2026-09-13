@@ -86,4 +86,4 @@ def create_item(item_type: ItemType, **kwargs) -> LibraryItem:
         ItemType.THESIS: Thesis,
     }
     cls = factories.get(item_type, LibraryItem)
-    return cls(**kwargs)
+    return cls(item_type=item_type, **kwargs)

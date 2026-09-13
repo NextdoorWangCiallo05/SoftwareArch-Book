@@ -1,12 +1,13 @@
 """值对象与枚举（领域层）。
 
-所有枚举以字符串取值持久化，便于在 SQLite 中直接阅读与调试。
+使用 StrEnum：枚举值即持久化字符串，避免 (str, Enum) 在
+SQLAlchemy 与 f-string 场景下出现 "ReaderType.UNDERGRADUATE" 这类取值。
 """
 
-from enum import Enum
+from enum import StrEnum
 
 
-class Role(str, Enum):
+class Role(StrEnum):
     """账户角色。"""
 
     READER = "reader"
@@ -14,7 +15,7 @@ class Role(str, Enum):
     ADMIN = "admin"
 
 
-class ReaderType(str, Enum):
+class ReaderType(StrEnum):
     """读者类型（含指导书要求的专科生）。"""
 
     ASSOCIATE = "ASSOCIATE"          # 专科生
@@ -24,7 +25,14 @@ class ReaderType(str, Enum):
     TEACHER = "TEACHER"              # 教师
 
 
-class ItemType(str, Enum):
+class ReaderStatus(StrEnum):
+    """读者账户状态。"""
+
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+
+class ItemType(StrEnum):
     """出借物类型。"""
 
     BOOK = "BOOK"
@@ -32,7 +40,7 @@ class ItemType(str, Enum):
     THESIS = "THESIS"
 
 
-class ItemStatus(str, Enum):
+class ItemStatus(StrEnum):
     """馆藏副本状态（BR-010 状态机）。"""
 
     AVAILABLE = "AVAILABLE"
@@ -41,7 +49,7 @@ class ItemStatus(str, Enum):
     REMOVED = "REMOVED"
 
 
-class LoanStatus(str, Enum):
+class LoanStatus(StrEnum):
     """借阅记录状态。"""
 
     BORROWED = "BORROWED"
@@ -49,7 +57,7 @@ class LoanStatus(str, Enum):
     OVERDUE = "OVERDUE"
 
 
-class CardStatus(str, Enum):
+class CardStatus(StrEnum):
     """借阅证状态。"""
 
     ACTIVE = "ACTIVE"
@@ -57,7 +65,7 @@ class CardStatus(str, Enum):
     REVOKED = "REVOKED"
 
 
-class ReservationStatus(str, Enum):
+class ReservationStatus(StrEnum):
     """预约状态。"""
 
     ACTIVE = "ACTIVE"
@@ -66,16 +74,9 @@ class ReservationStatus(str, Enum):
     EXPIRED = "EXPIRED"
 
 
-class ReviewStatus(str, Enum):
+class ReviewStatus(StrEnum):
     """评论状态（BR-018 审核规则）。"""
 
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
-
-
-class ReaderStatus(str, Enum):
-    """读者账户状态。"""
-
-    ACTIVE = "active"
-    INACTIVE = "inactive"
