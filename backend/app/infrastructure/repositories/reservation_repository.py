@@ -104,6 +104,27 @@ class SQLAlchemyReservationRepository:
             .count()
         )
 
+    def expire_outdated(self, reader_id: int, title_id: int, today: date) -> int:
+        """惰性失效：将该读者在该标题下已过期的 ACTIVE 预约置为 EXPIRED。
+
+        必要性：部分唯一索引 uq_reservation_active 只按 status='ACTIVE' 约束，
+        无法在索引条件中表达「未过期」，因此在创建预约前需先落库失效状态。
+        """
+        rows = (
+            self.db.query(ReservationORM)
+            .filter(
+                ReservationORM.reader_id == reader_id,
+                ReservationORM.title_id == title_id,
+                ReservationORM.status == ReservationStatus.ACTIVE.value,
+                ReservationORM.expires_at < today,
+            )
+            .all()
+        )
+        for orm in rows:
+            orm.status = ReservationStatus.EXPIRED.value
+        self.db.flush()
+        return len(rows)
+
     def list_by_title(self, title_id: int) -> list[Reservation]:
         rows = (
             self.db.query(ReservationORM)

@@ -6,9 +6,12 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import BusinessError, NotFoundError
 from app.domain.entities.identity import Account, BorrowCard, Librarian
+from app.domain.policies.borrow_policy import BorrowPolicy
+from app.domain.policies.fine_rule import FineRule
 from app.domain.value_objects.enums import ReaderStatus, Role
 from app.infrastructure.repositories.account_repository import SQLAlchemyAccountRepository
 from app.infrastructure.repositories.circulation_repository import SQLAlchemyLoanRepository
+from app.infrastructure.repositories.policy_repository import SQLAlchemyPolicyRepository
 from app.infrastructure.repositories.reader_repository import (
     SQLAlchemyBorrowCardRepository,
     SQLAlchemyLibrarianRepository,
@@ -25,6 +28,7 @@ class AdminService:
         self.librarians = SQLAlchemyLibrarianRepository(db)
         self.cards = SQLAlchemyBorrowCardRepository(db)
         self.loans = SQLAlchemyLoanRepository(db)
+        self.policies = SQLAlchemyPolicyRepository(db)
         self.hasher = Pbkdf2PasswordHasher()
 
     # ---------- 借阅证（FR-004 / FR-005） ----------
@@ -128,5 +132,32 @@ class AdminService:
             raise BusinessError("请先归还全部图书")
         reader.status = ReaderStatus.INACTIVE
         saved = self.readers.save(reader)
+        self.db.commit()
+        return saved
+
+    # ---------- 规则维护（FR-025 / FR-026） ----------
+
+    def upsert_borrow_policy(self, reader_type, item_type, max_borrow_count, borrow_days):
+        if max_borrow_count <= 0 or borrow_days <= 0:
+            raise BusinessError("借阅数量与期限必须大于 0")
+        policy = BorrowPolicy(
+            reader_type=reader_type,
+            item_type=item_type,
+            max_borrow_count=max_borrow_count,
+            borrow_days=borrow_days,
+        )
+        saved = self.policies.upsert_borrow_policy(policy)
+        self.db.commit()
+        return saved
+
+    def upsert_fine_rule(self, item_category, grace_days, amount_per_day):
+        if grace_days < 0 or amount_per_day < 0:
+            raise BusinessError("宽限期与罚款金额不能为负")
+        rule = FineRule(
+            item_category=item_category,
+            grace_days=grace_days,
+            amount_per_day=amount_per_day,
+        )
+        saved = self.policies.upsert_fine_rule(rule)
         self.db.commit()
         return saved

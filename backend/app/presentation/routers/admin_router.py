@@ -4,6 +4,7 @@
 """
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.application.admin_service import AdminService
@@ -213,3 +214,50 @@ def remove_item(
 ) -> APIResponse:
     CatalogService(db).remove_item(item_id)
     return ok(message="馆藏副本已删除")
+
+
+# ---------- 规则维护（FR-025 / FR-026） ----------
+
+
+class BorrowPolicyRequest(BaseModel):
+    reader_type: ReaderType
+    item_type: str = "ALL"
+    max_borrow_count: int
+    borrow_days: int
+
+
+class FineRuleRequest(BaseModel):
+    item_category: str
+    grace_days: int = 0
+    amount_per_day: float
+
+
+@router.put("/api/admin/policies/borrow", response_model=APIResponse)
+def upsert_borrow_policy(
+    req: BorrowPolicyRequest,
+    db: Session = Depends(get_db),
+    account: Account = Depends(_admin_only),
+) -> APIResponse:
+    policy = AdminService(db).upsert_borrow_policy(
+        req.reader_type, req.item_type, req.max_borrow_count, req.borrow_days
+    )
+    return ok(data={"reader_type": str(policy.reader_type),
+                    "item_type": str(policy.item_type),
+                    "max_borrow_count": policy.max_borrow_count,
+                    "borrow_days": policy.borrow_days},
+              message="借阅规则已更新")
+
+
+@router.put("/api/admin/policies/fine", response_model=APIResponse)
+def upsert_fine_rule(
+    req: FineRuleRequest,
+    db: Session = Depends(get_db),
+    account: Account = Depends(_admin_only),
+) -> APIResponse:
+    rule = AdminService(db).upsert_fine_rule(
+        req.item_category, req.grace_days, req.amount_per_day
+    )
+    return ok(data={"item_category": rule.item_category,
+                    "grace_days": rule.grace_days,
+                    "amount_per_day": float(rule.amount_per_day)},
+              message="罚款规则已更新")

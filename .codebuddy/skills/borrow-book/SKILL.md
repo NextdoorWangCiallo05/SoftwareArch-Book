@@ -1,80 +1,86 @@
 ---
 name: borrow-book
-description: 借阅图书技能。由 circulation-agent 在 orchestrator-agent 委派下调用，提供借阅接口参考。
+description: 借阅图书技能。由 circulation-agent 在 orchestrator-agent 委派下调用，提供借书接口契约。
 metadata:
-  version: "1.1"
+  version: "2.0"
   api-base: "http://localhost:8001"
 ---
 
-> 说明：本 skill 不在用户输入时自动触发；借书意图由 `orchestrator-agent` 委派 `circulation-agent` 执行，circulation-agent 需解析参数时参考本 skill。
+> 说明：本 skill 不在用户输入时自动触发；借书意图由 `orchestrator-agent` 委派 `circulation-agent` 执行，circulation-agent 参考本 skill 调用接口。
 
 ## 后端真实 API 映射
+
 基址 `http://localhost:8001`，统一返回 `{code, message, data}`。
-| 能力 | 方法 | 路径 | 请求体 / 参数 |
-|------|------|------|--------------|
-| 查配额 | GET | `/api/borrow/check-quota/{user_id}` | 路径参数，返回 `has_overdue`/`remaining` |
-| 图书详情 | GET | `/api/books/{book_id}` | 路径参数，返回 `available_copies`/`status` |
-| 借阅 | POST | `/api/borrow` | `{user_id, book_id}` |
+**需要令牌且 `role = librarian`**（借书由图书管理员代理办理）。
+
+| 能力 | 方法 | 路径 | 请求体 / 参数 | 返回关键字段 |
+|------|------|------|--------------|-------------|
+| 检索图书 | GET | `/api/books/search` | `keyword`（query） | `data.books[].title_id` |
+| 图书详情 | GET | `/api/books/{title_id}` | 路径参数 | `data.items[].barcode`、`status` |
+| 借阅 | POST | `/api/circulation/borrow` | `{card_no, barcode}` | `data.loan_id`、`data.due_date` |
 
 ## Input
-- user_id: integer（必需）- 用户ID
-- book_id: integer（必需）- 图书ID
-- username: string（必需）- 用户名（用于验证）
+
+- card_no: string（必需）- 借阅证号
+- barcode: string（必需）- 馆藏副本条码（**不是** title_id）
+- token: string（必需）- 图书管理员令牌
 
 ## Output
-- 借阅结果，包含：是否成功、图书名称、借阅日期、应还日期
+
+- `loan_id`、`title`、`barcode`、`borrow_date`、`due_date`
 
 ## Procedure
-### 第1步：用户身份验证
+
+### 第1步：确认令牌与角色（role = librarian）
+
+```python
+headers = {"Authorization": f"Bearer {token}"}
+```
+
+### 第2步：解析馆藏条码
+
+用 `book-search` 检索 `title_id`，再调 `GET /api/books/{title_id}` 取一个 `status = AVAILABLE` 的 `barcode`。
+
+### 第3步：执行借阅
+
 ```python
 import httpx
-# 调用用户查询API
-response = httpx.get(f"http://localhost:8001/api/users/{user_id}")
-user_data = response.json()
 
-if user_data["code"] != 200:
-    返回："用户不存在，请检查用户ID"
+resp = httpx.post(
+    "http://localhost:8001/api/circulation/borrow",
+    json={"card_no": card_no, "barcode": barcode},
+    headers=headers,
+).json()
+# 成功：code=200，data = {loan_id, title, barcode, borrow_date, due_date}
 ```
 
-### 第2步：检查借阅配额
-```python
-# 调用配额检查API
-response = httpx.get(f"http://localhost:8001/api/borrow/check-quota/{user_id}")
-quota_data = response.json()
+### 第4步：返回结果
 
-if quota_data["data"]["remaining"] <= 0:
-    返回："您的借阅已满（{current_borrowed}/{max_borrow}），请先归还图书再借阅"
+"借阅成功！《{title}》已借出，请于 {due_date} 前归还。"
 
-if quota_data["data"]["has_overdue"]:
-    返回："您有{overdue_count}本图书超期未还，请先归还"
-```
+## 业务规则（由后端保证，Agent 只需透传 message）
 
-### 第3步：检查图书状态
-```python
-# 调用图书详情API
-response = httpx.get(f"http://localhost:8001/api/books/{book_id}")
-book_data = response.json()
+- 借阅证必须有效（BR-001）
+- 未超过该读者类型 + 出借物类型的数量上限（BR-002）
+- 无超期未还（BR-003）
+- 无未缴罚款或赔偿（BR-006）
+- 副本状态必须为 AVAILABLE（BR-010）
 
-if book_data["data"]["available_copies"] <= 0:
-    返回："《{title}》已全部借出，您可以预约"
-```
+## 错误处理
 
-### 第4步：执行借阅操作
-```python
-# 调用借阅API
-response = httpx.post(
-    "http://localhost:8001/api/borrow",
-    json={"user_id": user_id, "book_id": book_id}
-)
-result = response.json()
-```
-
-### 第5步：返回结果
-- 成功：返回借阅成功信息，包含书名、借阅日期、应还日期
-- 失败：返回具体的失败原因（配额已满、图书已借出等）
+| code | message 示例 | 处理 |
+|---|---|---|
+| 403 | 权限不足 | 提示需由图书管理员办理 |
+| 404 | 借阅证不存在 / 馆藏不存在 | 核对输入 |
+| 400 | 借阅证无效 | 提示办证或换证 |
+| 400 | 借阅已满（5/5），请先归还图书 | 提示先还书 |
+| 400 | 有超期未还图书，请先归还 | 提示先还超期书 |
+| 400 | 存在未缴罚款或赔偿，请先缴清 | 提示缴费 |
+| 400 | 该馆藏不可借 | 建议预约 |
 
 ## Acceptance Criteria
-- 每一步必须调用对应的 API，不可直接操作数据库
-- 任何步骤失败都必须给出明确的错误信息
-- 借阅成功后必须向用户确认借阅信息
-- 如果用户只说了书名没说具体哪本，必须先用搜索 Skill 让用户选择
+
+- 必须使用真实 `card_no` 与 `barcode`，不得编造
+- 每一步必须调用对应 API，不可直接操作数据库
+- 借书成功后必须向用户确认书名与应还日期
+- 如果用户只说了书名没说具体哪本，必须先用搜索让用户选择

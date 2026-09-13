@@ -117,6 +117,7 @@ class ReservationRepository(Protocol):
     def count_effective_by_others(
         self, title_id: int, reader_id: int, today: date
     ) -> int: ...
+    def expire_outdated(self, reader_id: int, title_id: int, today: date) -> int: ...
 
 
 class ReviewRepository(Protocol):
