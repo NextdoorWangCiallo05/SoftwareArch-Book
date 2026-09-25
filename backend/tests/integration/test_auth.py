@@ -105,3 +105,29 @@ class TestToken:
         resp = client.post("/api/auth/logout",
                            headers={"Authorization": "Bearer invalid-token"})
         assert resp.json()["code"] == 403
+
+
+class TestProfile:
+    """TC-006A ~ TC-006C：当前身份查询（供 Agent 解析 reader_id / card_no）。"""
+
+    def test_me_requires_token(self, client):
+        resp = client.get("/api/auth/me")
+        assert resp.json()["code"] == 403
+
+    def test_me_returns_reader_id_and_card_no(self, client, seeded):
+        token = _login(client).json()["data"]["token"]
+        resp = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        body = resp.json()
+        assert body["code"] == 200
+        assert body["data"]["role"] == "reader"
+        assert body["data"]["username"] == "zhangsan"
+        assert body["data"]["reader_id"] == seeded["reader_id"]
+        assert body["data"]["card_no"] == "CARD2026000001"
+
+    def test_me_card_no_is_none_when_reader_has_no_card(self, client):
+        _register(client)
+        token = _login(client).json()["data"]["token"]
+        data = client.get("/api/auth/me",
+                          headers={"Authorization": f"Bearer {token}"}).json()["data"]
+        assert data["reader_id"] is not None
+        assert data["card_no"] is None

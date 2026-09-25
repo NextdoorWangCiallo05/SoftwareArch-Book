@@ -33,3 +33,15 @@ class LoginDTO(BaseModel):
     user_id: int
     role: str
     username: str
+
+
+class ProfileDTO(BaseModel):
+    """当前登录身份（供 Agent 解析 reader_id / card_no，避免猜测）。"""
+
+    user_id: int
+    username: str
+    role: str
+    reader_id: int | None = None
+    name: str | None = None
+    reader_type: str | None = None
+    card_no: str | None = None

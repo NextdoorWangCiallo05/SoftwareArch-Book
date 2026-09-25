@@ -2,11 +2,13 @@
 
 - 生成时间：2026-09-25
 - 生成方式：`python scripts/e2e_acceptance.py`（对运行中的 http://localhost:8001 调用真实接口）
-- 结果：**28 / 28 通过**
+- 结果：**30 / 30 通过**
 
 | 编号 | 验收场景 | 请求 | 预期与实际 | 结论 |
 |---|---|---|---|---|
 | A-01 | 三类角色登录（admin/lib01/zhangsan） | `POST /api/auth/login` | 返回 token<br>实际：admin/librarian/reader 令牌均已取得 | PASS |
+| A-02 | 解析当前身份（reader_id / card_no） | `GET /api/auth/me` | reader_id 与 card_no 均非空，且与登录返回的 user_id 不同<br>实际：HTTP 200｜user_id=4, reader_id=1, card_no=CARD2026000001 | PASS |
+| A-03 | 管理员查询读者列表含借阅证号 | `GET /api/admin/readers` | readers[].card_no 非空（管理员代办借书时可取用）<br>实际：HTTP 200｜total=4, 首位 card_no=CARD2026000001 | PASS |
 | B-01 | 未登录调用借书 | `POST /api/circulation/borrow（无令牌）` | 403 未登录或令牌无效<br>实际：HTTP 403 code=403｜未登录或令牌无效 | PASS |
 | B-02 | 读者调用管理员接口借书 | `POST /api/circulation/borrow（读者令牌）` | 403 权限不足（借书必须由管理员代理）<br>实际：HTTP 403 code=403｜权限不足 | PASS |
 | C-01 | 借书：本科生（5 本 / 30 天） | `POST /api/circulation/borrow` | due_date = 今天+30 = 2026-10-25<br>实际：HTTP 200｜due_date=2026-10-25 | PASS |
@@ -41,6 +43,6 @@
 |---|---|
 | 9. 借书、还书、预约、查询可用 | C-01、F-01、H-01、D-01 |
 | 10. 不同读者类型借阅规则可用 | C-01/C-02/C-05/C-06、C-03/C-04（出借物维度） |
-| 11. 不同借出物类型罚款规则可用 | G-01（图书 5.00）vs G-02（论文 20.00） |
+| 11. 不同借出物类型罚款规则可用 | G-01（图书 5.00）vs G-03（论文 20.00） |
 | 任务卡 任务一 续借 | E-01、E-02 |
 | 任务卡 任务二 图书评论与评分 | I-01～I-06 |

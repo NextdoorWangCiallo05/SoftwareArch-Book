@@ -2,7 +2,7 @@
 name: renew-book
 description: 续借图书技能。由 circulation-agent 在 orchestrator-agent 委派下调用，提供续借接口契约。
 metadata:
-  version: "1.0"
+  version: "1.1"
   api-base: "http://localhost:8001"
 ---
 
@@ -23,6 +23,7 @@ metadata:
 - loan_id: integer（必需）- 借阅记录 ID（先经查记录获得）
 - token: string（必需）
 - reader_id: integer（查记录时需要；读者本人只能查自己）
+  - 取自 `GET /api/auth/me` 返回的 `data.reader_id`，**不是登录返回的 `user_id`**
 
 ## Output
 
@@ -32,6 +33,8 @@ metadata:
 ## Procedure
 
 ### 第1步：定位借阅记录
+
+先经 `user-manage` 的 `GET /api/auth/me` 拿到 `reader_id`（不是 `user_id`）。
 
 ```python
 import httpx
@@ -43,6 +46,8 @@ resp = httpx.get(
     headers=headers,
 ).json()
 # 从 data.records 中按书名匹配，取出 loan_id
+# 同一标题可能有多本在借（同一读者借了两本同名书），
+# 按 barcode 或 borrow_date 消歧；无法判断时先向用户确认是哪一本
 ```
 
 ### 第2步：调用续借接口

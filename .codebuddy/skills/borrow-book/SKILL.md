@@ -2,7 +2,7 @@
 name: borrow-book
 description: 借阅图书技能。由 circulation-agent 在 orchestrator-agent 委派下调用，提供借书接口契约。
 metadata:
-  version: "2.0"
+  version: "2.1"
   api-base: "http://localhost:8001"
 ---
 
@@ -22,6 +22,9 @@ metadata:
 ## Input
 
 - card_no: string（必需）- 借阅证号
+  - 读者本人在场：读者登录后 `GET /api/auth/me` 的 `data.card_no`
+  - 管理员代办：系统管理员调 `GET /api/admin/readers`，每位读者带 `card_no`
+  - 后端**没有**按书名查证号的接口，不得编造
 - barcode: string（必需）- 馆藏副本条码（**不是** title_id）
 - token: string（必需）- 图书管理员令牌
 
@@ -37,9 +40,15 @@ metadata:
 headers = {"Authorization": f"Bearer {token}"}
 ```
 
-### 第2步：解析馆藏条码
+### 第2步：解析馆藏条码与借阅证号
 
 用 `book-search` 检索 `title_id`，再调 `GET /api/books/{title_id}` 取一个 `status = AVAILABLE` 的 `barcode`。
+
+`card_no` 用 `user-manage` 的第 3 步解析：`GET /api/auth/me`（读者在场）
+或 `GET /api/admin/readers`（管理员代办）。
+
+> 注意两处 `status` 语义不同：`/api/books/search` 的 `status` 是中文（`"在馆"`），
+> `/api/books/{title_id}` 的 `items[].status` 是英文枚举（`AVAILABLE` / `BORROWED` / `RESERVED` / `REMOVED`）。
 
 ### 第3步：执行借阅
 

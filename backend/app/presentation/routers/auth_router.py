@@ -33,6 +33,15 @@ def login(req: LoginRequest, db: Session = Depends(get_db)) -> APIResponse:
     return ok(data=result.model_dump(), message="登录成功")
 
 
+@router.get("/api/auth/me", response_model=APIResponse)
+def me(
+    account: Account = Depends(get_current_account),
+    db: Session = Depends(get_db),
+) -> APIResponse:
+    """当前登录身份：解析 reader_id 与有效借阅证号（供借书/续借/查记录使用）。"""
+    return ok(data=AuthService(db).profile(account).model_dump(), message="查询成功")
+
+
 @router.post("/api/auth/logout", response_model=APIResponse)
 def logout(
     authorization: str | None = Header(default=None),

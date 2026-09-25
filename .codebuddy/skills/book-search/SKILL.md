@@ -2,7 +2,7 @@
 name: book-search
 description: 图书检索技能。由 orchestrator-agent / circulation-agent 按需调用，提供图书检索与详情的接口参考（检索仅为读取，执行类操作走 circulation-agent）。
 metadata:
-  version: "2.0"
+  version: "2.1"
   api-base: "http://localhost:8001"
 ---
 
@@ -20,8 +20,13 @@ metadata:
 
 `data.books[]` 每项包含：`title_id`、`title`、`author`、`isbn`、`category`、`item_type`、`available_count`、`status`。
 `data.items[]` 每项包含：`item_id`、`barcode`、`status`、`location`。
+详情还返回 `data.average_rating`（平均评分，仅统计已审核通过的评论）与 `data.review_count`（评论条数）。
 
 > 借书需要的是 **`barcode`**（馆藏副本），不是 `title_id`；借书前用详情接口取一个 `status=AVAILABLE` 的 `barcode`。
+
+> 注意两处 `status` 语义不同：检索结果 `data.books[].status` 是中文（`"在馆"` / `"已借出"`），
+> 详情接口 `data.items[].status` 是英文枚举（`AVAILABLE` / `BORROWED` / `RESERVED` / `REMOVED`）。
+> 判断"能否借"一律以详情接口的英文枚举为准。
 
 ## Input
 

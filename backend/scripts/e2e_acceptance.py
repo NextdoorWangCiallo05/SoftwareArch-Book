@@ -149,6 +149,22 @@ def main() -> int:
     record("A-01", "三类角色登录（admin/lib01/zhangsan）", "POST /api/auth/login",
            "返回 token", "admin/librarian/reader 令牌均已取得", True)
 
+    # 身份解析：user_id 与 reader_id 不同，Agent 必须靠本接口解析
+    st, c, m, d = call("GET", "/api/auth/me", zs)
+    zs_reader_id = d.get("reader_id") if d else None
+    zs_card = d.get("card_no") if d else None
+    expect_ok("A-02", "解析当前身份（reader_id / card_no）", "GET /api/auth/me", st, d,
+              "reader_id 与 card_no 均非空，且与登录返回的 user_id 不同",
+              f"user_id={d.get('user_id') if d else None}, reader_id={zs_reader_id}, card_no={zs_card}",
+              bool(d) and zs_reader_id is not None and zs_card is not None)
+
+    st, c, m, d = call("GET", "/api/admin/readers", admin)
+    first_card = (d.get("readers") or [{}])[0].get("card_no") if d else None
+    expect_ok("A-03", "管理员查询读者列表含借阅证号", "GET /api/admin/readers", st, d,
+              "readers[].card_no 非空（管理员代办借书时可取用）",
+              f"total={d.get('total') if d else None}, 首位 card_no={first_card}",
+              bool(d) and first_card is not None)
+
     # --- 2. 权限收口 ---
     st, c, m, _ = call("POST", "/api/circulation/borrow", None,
                        {"card_no": card_no_of("zhangsan"), "barcode": barcode_of("活着")})

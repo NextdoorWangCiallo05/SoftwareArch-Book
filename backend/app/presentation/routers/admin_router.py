@@ -14,6 +14,7 @@ from app.core.security import require_role
 from app.domain.entities.identity import Account
 from app.domain.value_objects.enums import ReaderType, Role
 from app.infrastructure.db.base import get_db
+from app.infrastructure.repositories.reader_repository import SQLAlchemyBorrowCardRepository
 from app.schemas.admin import (
     CreateLibrarianRequest,
     IssueCardRequest,
@@ -44,7 +45,8 @@ def _staff_dto(staff) -> dict:
     }
 
 
-def _reader_dto(reader) -> dict:
+def _reader_dto(reader, card_no: str | None = None) -> dict:
+    """读者 DTO。附带有效借阅证号，便于管理员代借时无需另查。"""
     return {
         "reader_id": reader.id,
         "name": reader.name,
@@ -52,6 +54,7 @@ def _reader_dto(reader) -> dict:
         "email": reader.email,
         "phone": reader.phone,
         "status": str(reader.status),
+        "card_no": card_no,
     }
 
 
@@ -136,7 +139,12 @@ def list_readers(
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
     rows, total = AdminService(db).list_readers(name, reader_type, page, page_size)
-    return ok(data={"total": total, "readers": [_reader_dto(r) for r in rows]})
+    card_repo = SQLAlchemyBorrowCardRepository(db)
+    readers = []
+    for row in rows:
+        card = card_repo.find_active_by_reader(row.id)
+        readers.append(_reader_dto(row, card.card_no if card else None))
+    return ok(data={"total": total, "readers": readers})
 
 
 @router.put("/api/admin/readers/{reader_id}", response_model=APIResponse)

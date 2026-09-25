@@ -596,3 +596,46 @@ CodeBuddy
 
 ### Git 提交
 `add end-to-end acceptance script and report for experiment 2`
+
+---
+
+## 第 19 次使用
+
+### 使用工具
+CodeBuddy（orchestrator-agent 真实调用后端 API）
+
+### 使用阶段
+对话式端到端演示 / 契约缺口修复
+
+### 输入 Prompt 摘要
+要求 `orchestrator-agent` 用自然语言完成三条用户请求（"我想借《三体》"、"把我借的《三体》续借一下"、"给《三体》打 5 分…看看评论"），真实调用 API，并汇报提示词与后端契约是否一致。
+
+### Agent 修改文件
+- `backend/app/schemas/auth.py`（新增 `ProfileDTO`）
+- `backend/app/application/auth_service.py`（新增 `profile()`）
+- `backend/app/presentation/routers/auth_router.py`（新增 `GET /api/auth/me`）
+- `backend/app/presentation/routers/admin_router.py`（`GET /api/admin/readers` 补 `card_no`）
+- `backend/tests/integration/test_auth.py`（新增 `TestProfile` 三条用例）
+- `backend/scripts/e2e_acceptance.py`（新增 A-02、A-03 两个验收场景）
+- `.codebuddy/agents/{orchestrator,circulation}-agent/SKILL.md` 与 5 个 skill（版本 +0.1）
+- `demo/chat-demo.md`（新建：对话演示记录）
+
+### 输出摘要
+对话端到端跑通，但 Agent 自查出 4 处提示词与后端不一致，其中 2 处会让对话卡死：
+1. **`user_id` ≠ `reader_id`**：登录给的是账户 ID（4），借书/续借/查记录要读者 ID（1），Agent 无从解析 → 新增 `GET /api/auth/me`；
+2. **无接口可查 `card_no`**：借书必需字段只能猜 → `me` 返回 `card_no`，`GET /api/admin/readers` 的每位读者补 `card_no`。
+另修正 3 处提示词口径：续借权限为"读者本人或管理员"（原写死 reader）、admin 令牌不能借书只能解析证号、同名多本续借需消歧。
+
+### 变更影响分析（新增接口，超出 baseline specs）
+新增 `GET /api/auth/me` 与 `readers[].card_no` 属**只读查询补齐**，未改动 `specs/` 下任何 baseline 文件，
+不影响既有接口语义与数据库结构（无新增表、无字段变更），仅新增响应字段，向后兼容。
+
+### 人工审查结果
+复验确认修复生效：`user_id=4 ≠ reader_id=1`，`card_no=CARD2026000001` 与管理员侧口径一致（双源交叉校验）。
+首轮演示中 `circulation-agent` 提示词未同步（执行者文件漏改），已补并升版至 2.1。
+
+### 测试结果
+`pytest` 134 通过（新增 3 条）；端到端 `scripts/e2e_acceptance.py` 30/30 通过。
+
+### Git 提交
+`fix agent contract gap: add /api/auth/me and expose card_no`

@@ -2,7 +2,7 @@
 name: circulation-agent
 description: 流通管理Agent。负责处理借书、还书、续借、预约、查记录、丢失赔偿等流通业务，真正调用后端 REST API。
 metadata:
-  version: "2.0"
+  version: "2.1"
   api-base: "http://localhost:8001"
 ---
 
@@ -21,7 +21,8 @@ metadata:
 
 1. 先调用 `POST /api/auth/login` 取得 `data.token`；
 2. 后续请求携带请求头 `Authorization: Bearer <token>`；
-3. 借书、还书、赔偿、缴清要求 `role = librarian`；续借、查本人记录、预约要求 `role = reader`。
+3. 借书、还书、赔偿、缴清要求 `role = librarian`（**系统管理员 admin 不能借书，会被 403**）；
+   续借要求 `role = reader`（本人）**或 `role = librarian`**；查本人记录、预约要求 `role = reader`。
 
 > 未携带或无效令牌 → `403`；此时应先引导用户登录（参考 `user-manage` skill）。
 
@@ -33,6 +34,8 @@ metadata:
 | 能力 | 方法 | 路径 | 请求体 / 参数 | 返回关键字段 |
 |------|------|------|--------------|-------------|
 | 登录 | POST | `/api/auth/login` | `{username, password}` | `data.token`、`data.user_id`、`data.role` |
+| 查当前身份 | GET | `/api/auth/me` | 无（Header 携带令牌） | `data.reader_id`、`data.card_no`、`data.reader_type` |
+| 查读者证号 | GET | `/api/admin/readers` | 无（**admin 令牌**） | `data.readers[].reader_id`、`card_no` |
 | 检索图书 | GET | `/api/books/search` | `keyword`/`author`/`category`/`item_type`/`page`/`page_size` | `data.books[].title_id`、`available_count` |
 | 借书 | POST | `/api/circulation/borrow` | `{card_no, barcode}` | `data.loan_id`、`data.due_date` |
 | 还书 | POST | `/api/circulation/return` | `{barcode}` | `data.overdue_days`、`data.fine` |
@@ -47,14 +50,20 @@ metadata:
 ## 调用流程
 
 - **借书**
-  1. 确认令牌（缺失则 `POST /api/auth/login`）；
-  2. 需要 `card_no`：由用户提供的借阅证号；不确定时提示用户；
+  1. 确认令牌为 `librarian`（缺失则 `POST /api/auth/login`；admin 令牌**不能**借书）；
+  2. 需要 `card_no`，两条解析路径，**不得猜测**：
+     - 读者在场：读者登录后 `GET /api/auth/me` 的 `data.card_no`；
+     - 管理员代办：用 **admin 令牌**调 `GET /api/admin/readers` 取该读者的 `card_no`
+       （该令牌只用于解析证号，借书请求仍用 librarian 令牌）；
+     - 两条都拿不到才提示用户提供；
   3. 需要 `barcode`：先用 `GET /api/books/search` 定位 `title_id`，再经 `GET /api/books/{title_id}` 取副本 `barcode`；
   4. `POST /api/circulation/borrow`
 - **还书**：`POST /api/circulation/return {"barcode":..}`，读取 `data.fine` 并告知用户
 - **续借**
-  1. `GET /api/circulation/records/{reader_id}?status=BORROWED` 取 `loan_id`；
-  2. `POST /api/circulation/renew {"loan_id":..}`
+  1. `reader_id` 取自 `GET /api/auth/me` 的 `data.reader_id`（**不是登录返回的 `user_id`**）；
+  2. `GET /api/circulation/records/{reader_id}?status=BORROWED` 取 `loan_id`；
+     同一标题有多本时按 `barcode` / `borrow_date` 消歧，不确定则让用户确认；
+  3. `POST /api/circulation/renew {"loan_id":..}`
 - **预约**：`POST /api/reservations {"title_id":..}`，告知 `queue_position` 与 `expires_at`
 - **查记录**：`GET /api/circulation/records/{reader_id}`
 

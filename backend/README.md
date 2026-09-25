@@ -93,6 +93,7 @@ python -m pytest tests -q
 | 方法 | 路径 | 权限 | 说明 |
 |---|---|---|---|
 | POST | `/api/auth/register` / `/login` / `/logout` | 公开 / 登录 | 注册、登录、注销 |
+| GET | `/api/auth/me` | 登录 | 当前身份：`reader_id`、`card_no`、`reader_type` |
 | GET | `/api/books/search` | 登录 | 检索（关键词/作者/分类/类型/分页） |
 | GET | `/api/books/{title_id}` | 登录 | 详情（副本列表 + 平均分） |
 | POST | `/api/circulation/borrow` | 管理员 | 借书（card_no + barcode） |
@@ -104,7 +105,10 @@ python -m pytest tests -q
 | POST | `/api/reviews` | 读者 | 评分评论（需审核） |
 | GET | `/api/reviews?title_id=` | 登录 | 已通过评论 + 平均分 |
 | POST | `/api/reviews/{id}/moderate` | 系统管理员 | 审核 |
-| `/api/admin/**` | — | 系统管理员 | 借阅证、管理员、图书、规则维护 |
+| `/api/admin/**` | — | 系统管理员 | 借阅证、管理员、图书、规则维护（`GET /api/admin/readers` 返回含 `card_no`） |
+
+> Agent 注意：`user_id`（账户 ID）与 `reader_id`（读者 ID）编号独立，借书/续借/查记录用 `reader_id`，
+> 登录后经 `GET /api/auth/me` 解析；借书还需 `card_no`，同一接口或 `GET /api/admin/readers` 均可取得。
 
 统一响应信封：`{"code": 200|400|403|404|500, "message": "...", "data": {...}}`。
 

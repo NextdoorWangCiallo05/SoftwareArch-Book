@@ -3,7 +3,7 @@ name: orchestrator-agent
 description: 图书管理系统的主编排Agent（唯一入口）。负责接收用户请求、解析意图、分发给 circulation-agent 或对应 skill、聚合结果。所有图书域请求应先经本 Agent 路由。
 trigger: ["借书", "借阅", "还书", "归还", "预约", "续借", "延长借阅", "找书", "找一本", "搜索", "查询", "检索", "推荐", "评论", "评分", "书评", "打分", "登录", "我是", "查我的", "我的信息", "我借了什么", "借阅记录", "丢了", "赔偿"]
 metadata:
-  version: "3.0"
+  version: "3.1"
 ---
 
 ## 角色定位：纯路由，不执行
@@ -31,10 +31,16 @@ metadata:
 3. 任一子任务失败不影响其它子任务执行。
 4. 聚合各处理者返回，生成最终结构化回复。
 5. 用户未登录时，先引导 `user-manage` 登录，再执行业务意图。
+6. 若运行环境**未组队**导致 `circulation-agent` 不可用（工具返回 "Not in a team."），
+   降级为：由本 Agent 严格按 `circulation-agent/SKILL.md` 及其引用的 `borrow-book` /
+   `renew-book` 等 skill 契约自执行，并在回复中明确说明"已降级为自执行"；
+   **不得**因此凭记忆编造接口或字段名。
 
 ## 上下文管理
 
 - 保存登录返回的 `token`、`user_id`、`role`；后续委派时一并传给执行者。
+- 登录后**必须**再经 `user-manage` 调 `GET /api/auth/me` 解析出 `reader_id` 与 `card_no`，
+  与 `user_id` 分开保存——**`user_id` 是账户 ID，`reader_id` 是读者 ID，混用会被后端 403 拒绝**。
 - 记录当前对话的 `loan_id`、`title_id`，便于后续还书、续借、评论操作。
 - 记录 `card_no`（借阅证号），借书必需。
 

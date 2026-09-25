@@ -16,9 +16,12 @@ from app.infrastructure.repositories.account_repository import (
     SQLAlchemyAccountRepository,
     SQLAlchemyTokenRepository,
 )
-from app.infrastructure.repositories.reader_repository import SQLAlchemyReaderRepository
+from app.infrastructure.repositories.reader_repository import (
+    SQLAlchemyBorrowCardRepository,
+    SQLAlchemyReaderRepository,
+)
 from app.infrastructure.security.password_hasher import Pbkdf2PasswordHasher
-from app.schemas.auth import LoginDTO, ReaderDTO
+from app.schemas.auth import LoginDTO, ProfileDTO, ReaderDTO
 
 
 class AuthService:
@@ -26,6 +29,7 @@ class AuthService:
         self.db = db
         self.accounts = SQLAlchemyAccountRepository(db)
         self.readers = SQLAlchemyReaderRepository(db)
+        self.cards = SQLAlchemyBorrowCardRepository(db)
         self.tokens = SQLAlchemyTokenRepository(db)
         self.hasher = Pbkdf2PasswordHasher()
 
@@ -62,6 +66,23 @@ class AuthService:
 
         return LoginDTO(token=token, user_id=account.id, role=account.role.value,
                         username=account.username)
+
+    def profile(self, account: Account) -> ProfileDTO:
+        """查询当前身份（UC-002 补充）：返回 reader_id 与有效借阅证号。
+
+        Agent 侧的 `user_id`（账户 ID）与 `reader_id`（读者 ID）不是同一个值，
+        借书、续借、查记录用的是 `reader_id`，故提供本接口显式解析。
+        """
+        dto = ProfileDTO(user_id=account.id, username=account.username,
+                         role=account.role.value)
+        reader = self.readers.find_by_account_id(account.id)
+        if reader is not None:
+            card = self.cards.find_active_by_reader(reader.id)
+            dto.reader_id = reader.id
+            dto.name = reader.name
+            dto.reader_type = str(reader.reader_type)
+            dto.card_no = card.card_no if card else None
+        return dto
 
     def logout(self, token: str) -> None:
         """注销（UC-003）：令牌失效。"""

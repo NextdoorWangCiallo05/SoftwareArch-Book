@@ -2,7 +2,7 @@
 name: book-review
 description: 图书评论与评分技能。由 orchestrator-agent 在"评论/评分/书评"类意图下调用，提供评分评论、查看评论与审核的接口契约。
 metadata:
-  version: "1.0"
+  version: "1.1"
   api-base: "http://localhost:8001"
 ---
 
@@ -19,6 +19,9 @@ metadata:
 | 审核评论 | POST | `/api/reviews/{review_id}/moderate` | `{decision}` | `data.review_id`、`data.status` |
 
 `decision` 取值：`APPROVED` / `REJECTED`。
+
+> **三条接口全部需要令牌**（Header `Authorization: Bearer <token>`），匿名调用一律 `403`：
+> 提交需 `role=reader`，查看任意已登录角色，审核需 `role=admin`。
 
 ## Input
 
