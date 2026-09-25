@@ -52,6 +52,9 @@ backend/
 │  │  ├─ repositories/        # 仓储实现
 │  │  └─ security/            # PBKDF2 密码哈希
 │  └─ schemas/                # Pydantic DTO
+├─ scripts/
+│  ├─ e2e_acceptance.py       # 端到端验收脚本（28 个真实接口场景）
+│  └─ e2e_report.md           # 自动生成的验收记录
 └─ tests/                     # unit（领域与策略）+ integration（API）
 ```
 
@@ -113,7 +116,25 @@ python -m pytest tests -q
 - **续借**每本限 1 次，以原 `due_date` 为基数延长，存在他人有效预约时不可续借
 - **评论**需审核，`average_rating` 仅统计 `APPROVED`
 
-## 9. 规格文档
+## 9. 端到端验收
+
+对**正在运行的**服务调用真实接口，覆盖实验二最终验收第 9/10/11 条与任务卡两个扩展任务：
+
+```powershell
+# 1）重启服务以获得干净的种子库（脚本会改变库状态）
+python main.py
+# 2）另开一个终端执行
+$env:PYTHONIOENCODING="utf-8"
+python scripts/e2e_acceptance.py
+```
+
+- 通过后生成 `scripts/e2e_report.md`（含每个场景的请求、预期与实际、结论）
+- 失败时以非 0 退出码结束，并打印失败用例编号
+- 覆盖：借还预约查询、三种读者类型借期与数量上限、出借物维度（杂志 7 天 / 论文 3 天）、
+  续借与续借上限、评论 1–5 校验与审核后可见、权限收口，
+  以及同样逾期 10 天下图书 5.00 元 vs 论文 20.00 元的罚款差异
+
+## 10. 规格文档
 
 完整需求、用例、领域模型、架构、数据库、详细设计、API、测试计划见 `specs/`（编号 00–19）。
 实验一 baseline：`experiment1-specs-baseline-v1`；实验二 baseline：`experiment2-specs-baseline-v1`。
