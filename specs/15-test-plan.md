@@ -46,6 +46,9 @@
 | TC-004 | 密码错误 | 已注册 | 错误密码登录 | 403 用户名或密码错误 |
 | TC-005 | 未携带令牌访问受保护接口 | — | GET /api/circulation/records/1（无 Header） | 403 |
 | TC-006 | 注销后令牌失效 | 已登录 | POST /api/auth/logout 后再次访问 | 403 |
+| TC-006A | 查询当前身份返回 reader_id 与 card_no | 已登录读者且持有效借阅证 | GET /api/auth/me | 200，`reader_id`、`card_no` 非空，且 `user_id ≠ reader_id` |
+| TC-006B | 无有效借阅证时 card_no 为空 | 新注册读者（未办证） | GET /api/auth/me | 200，`reader_id` 非空、`card_no` 为 `null` |
+| TC-006C | 未携带令牌查询身份 | — | GET /api/auth/me（无 Header） | 403 |
 
 ---
 
@@ -210,5 +213,18 @@
 | 预约图书成功 | TC-043 |
 | 重复预约失败 | TC-045 |
 | 普通读者执行管理员操作失败 | TC-018 / TC-054 / TC-010 |
+| Agent 可解析借阅证号，代办借书不靠猜 | TC-006A / TC-006B + E2E `A-02` / `A-03` |
 
 全部覆盖，另有续借、评论审核、宽限期、专科生规则等扩展场景。
+
+## 12. 端到端验收脚本
+
+`backend/scripts/e2e_acceptance.py` 对**运行中的服务**调用真实接口，覆盖实验二最终验收第 9/10/11 条
+与学生任务卡两个扩展任务，共 30 个场景（编号 `A/C/D/E/F/G/H/I/J`），运行后生成 `scripts/e2e_report.md`。
+
+其中 `A-02`、`A-03` 为本次契约补齐新增：
+
+| 编号 | 场景 | 请求 | 预期 |
+|---|---|---|---|
+| A-02 | 解析当前身份 | `GET /api/auth/me`（读者令牌） | `reader_id`、`card_no` 均非空，且与登录返回的 `user_id` 不同 |
+| A-03 | 管理员查询读者列表 | `GET /api/admin/readers`（admin 令牌） | `readers[].card_no` 非空，供管理员代办借书取用 |

@@ -1,7 +1,7 @@
 # API 接口规范
 
 > 输入：`specs/02-requirements.md`、`specs/03-use-cases.md`、`specs/09-design-model.md`、`specs/13-database-design.md`
-> 状态：草稿（Agent 生成，待人工审查）
+> 状态：已冻结（tag `experiment2-specs-baseline-v1`）+ 增量修订，修订内容见文末《修订记录》
 
 ## 0. 通用约定
 
@@ -44,9 +44,26 @@ POST /api/auth/login
 请求：{ "username": "zhangsan", "password": "123456" }
 响应：200 data: { "token": "abc...", "user_id": 1, "role": "reader", "username": "zhangsan" }
 失败：403 用户名或密码错误
+说明：此处返回的 user_id 是「账户 ID」，与「读者 ID」reader_id 编号独立、值不相同；
+      借书、续借、查询借阅记录使用的是 reader_id，须经 1.3 接口解析。
 ```
 
-### 1.3 注销
+### 1.3 查询当前身份
+
+```text
+GET /api/auth/me
+权限：登录
+请求：无（令牌来自 Header）
+响应：200 data: { "user_id": 4, "username": "zhangsan", "role": "reader",
+                  "reader_id": 1, "name": "张三", "reader_type": "UNDERGRADUATE",
+                  "card_no": "CARD2026000001" }
+     其中 reader_id / name / reader_type / card_no 仅在 role=reader 时非空；
+     读者尚无有效借阅证时 card_no 为 null。
+失败：403 令牌无效
+用途：Agent 侧登录后据此解析 reader_id 与 card_no，避免猜测或混用 user_id。
+```
+
+### 1.4 注销
 
 ```text
 POST /api/auth/logout
@@ -246,6 +263,15 @@ POST /api/reviews/{review_id}/moderate
 | 6.8 | `POST /api/admin/items/{id}/remove` | 系统管理员 | — | `item_id`, `status=REMOVED` | 404；400 副本在借中 |
 | 6.9 | `PUT /api/admin/policies/borrow` | 系统管理员 | `{reader_type, item_type, max_borrow_count, borrow_days}` | `reader_type`,`item_type`,`max_borrow_count`,`borrow_days` | 400 数值非法 |
 | 6.10 | `PUT /api/admin/policies/fine` | 系统管理员 | `{item_category, grace_days, amount_per_day}` | `item_category`,`grace_days`,`amount_per_day` | 400 数值非法 |
+| 6.11 | `GET /api/admin/readers` | 系统管理员 | query：`name?`、`reader_type?`、`page`、`page_size` | `total`、`readers:[{reader_id,name,reader_type,email,phone,status,card_no}]` | 400 参数非法 |
+| 6.12 | `PUT /api/admin/readers/{reader_id}` | 系统管理员 | `{name?, reader_type?, email?, phone?}` | `reader_id`,`name`,`reader_type`,`status` | 404 读者不存在 |
+| 6.13 | `POST /api/admin/readers/{reader_id}/deactivate` | 系统管理员 | — | `reader_id`,`status=inactive` | 404 读者不存在 |
+| 6.14 | `GET /api/admin/librarians` | 系统管理员 | query：`page`、`page_size` | `total`、`librarians:[{librarian_id,name,employee_no}]` | 400 参数非法 |
+| 6.15 | `PUT /api/admin/librarians/{librarian_id}` | 系统管理员 | `{name?, employee_no?}` | `librarian_id`,`name`,`employee_no` | 404 管理员不存在 |
+| 6.16 | `PUT /api/admin/titles/{title_id}` | 系统管理员 | `{title?, author?, publisher?, published_year?, category?, price?}` | `title_id`,`title`,`price` | 404 标题不存在；ISBN 不可修改 |
+
+> 6.11 的 `card_no`：该读者的**有效**借阅证号，无有效证时为 `null`。
+> 供图书管理员在读者不到场时代办借书取用（读者在场时也可由 1.3 `GET /api/auth/me` 获得）。
 
 ---
 
@@ -262,3 +288,20 @@ GET /api/health
 ## 8. 接口与 SKILL.md 的一致性约定
 
 `.codebuddy/skills/*/SKILL.md` 与 `.codebuddy/agents/*/SKILL.md` 中出现的**路径、请求字段名、响应字段名**必须与本文档逐字一致；接口变更后必须同步更新，否则视为破坏性变更（宪法第 10 条）。
+
+---
+
+## 9. 修订记录
+
+本规范在 tag `experiment2-specs-baseline-v1` 冻结后，因**对话式端到端演示**（见 `demo/chat-demo.md`）暴露出两处
+Agent 无法自行解析的缺口，做了一次**向后兼容的只读补齐**：不新增表、不改字段、不改既有接口语义。
+
+| 修订 | 内容 | 原因 | 影响面 |
+|---|---|---|---|
+| 新增 1.3 `GET /api/auth/me` | 返回 `reader_id`、`name`、`reader_type`、`card_no` | 登录返回的 `user_id` 是账户 ID，与借书/续借/查记录所用的 `reader_id` 编号独立，Agent 无从解析 | 纯新增只读接口 |
+| 6.11 `GET /api/admin/readers` 响应补 `card_no` | 读者列表每位读者附有效借阅证号 | 借书必需 `card_no`，此前无任何只读接口可取，Agent 只能猜 | 仅新增响应字段 |
+| 补充 6.11–6.16 | 读者管理、管理员列表与修改、图书信息修改 6 个接口此前未入文档 | 实现时按 FR-028～FR-030 补齐，文档漏记 | 文档补齐，无代码变更 |
+| 1.2 登录补充说明 | 明确 `user_id` 与 `reader_id` 的区别 | 同一原因，避免契约被误用 | 文档说明 |
+
+上述修订已同步到 `.codebuddy` 下 2 个 agent 与 6 个 skill（版本号 +0.1），
+并补充回归用例 `TC-A02`、`TC-A03`（见 `15-test-plan.md`）。
