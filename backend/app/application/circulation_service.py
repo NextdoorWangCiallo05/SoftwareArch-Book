@@ -41,6 +41,7 @@ from app.schemas.circulation import (
     LoanDTO,
     LostResultDTO,
     RenewResultDTO,
+    ReturnRequestDTO,
     ReturnResultDTO,
 )
 
@@ -113,9 +114,68 @@ class CirculationService:
             due_date=loan.due_date.isoformat(),
         )
 
-    # ---------- 还书（UC-010 / UC-015） ----------
+    # ---------- 还书（UC-010 / UC-015，BR-020 两段式流程） ----------
+
+    def request_return(self, loan_id: int, today: date | None = None) -> ReturnRequestDTO:
+        """读者发起归还申请：BORROWED → RETURN_REQUESTED（书仍在读者手上）。"""
+        today = today or date.today()
+
+        loan = self.loans.get(loan_id)
+        if loan is None:
+            raise NotFoundError("借阅记录不存在")
+
+        loan.request_return()
+        self.loans.save(loan)
+        self.db.commit()
+        return self._to_return_request_dto(loan, today)
+
+    def list_return_requests(self, today: date | None = None) -> list[ReturnRequestDTO]:
+        """待审核的归还申请清单（馆员审核台）。"""
+        today = today or date.today()
+        result = []
+        for row in self.loans.list_return_requests():
+            due = row["due_date"]
+            is_overdue = bool(due) and date.fromisoformat(due) < today
+            result.append(
+                ReturnRequestDTO(
+                    **row,
+                    is_overdue=is_overdue,
+                    status=LoanStatus.RETURN_REQUESTED.value,
+                )
+            )
+        return result
+
+    def approve_return(self, loan_id: int, today: date | None = None) -> ReturnResultDTO:
+        """馆员审核通过：确认收到图书，执行归还与超期罚款结算。"""
+        today = today or date.today()
+
+        loan = self.loans.get(loan_id)
+        if loan is None:
+            raise NotFoundError("借阅记录不存在")
+        if loan.status != LoanStatus.RETURN_REQUESTED:
+            raise BusinessError("该借阅记录没有待审核的归还申请")
+
+        item = self.items.get(loan.item_id)
+        if item is None:
+            raise NotFoundError("馆藏不存在")
+
+        return self._settle_return(item, loan, today)
+
+    def reject_return(self, loan_id: int, today: date | None = None) -> ReturnRequestDTO:
+        """馆员驳回：未收到图书，借阅记录退回在借状态。"""
+        today = today or date.today()
+
+        loan = self.loans.get(loan_id)
+        if loan is None:
+            raise NotFoundError("借阅记录不存在")
+
+        loan.reject_return_request()
+        self.loans.save(loan)
+        self.db.commit()
+        return self._to_return_request_dto(loan, today)
 
     def return_book(self, barcode: str, today: date | None = None) -> ReturnResultDTO:
+        """馆员现场办理还书（条码直办，读者无需先提交归还申请）。"""
         today = today or date.today()
 
         item = self.items.find_by_barcode(barcode)
@@ -126,6 +186,10 @@ class CirculationService:
         if loan is None:
             raise BusinessError("未找到该馆藏的借阅记录")
 
+        return self._settle_return(item, loan, today)
+
+    def _settle_return(self, item, loan: Loan, today: date) -> ReturnResultDTO:
+        """归还结算：更新借阅记录 + 副本回架 + 超期罚款，同一事务提交。"""
         overdue_days = loan.return_item(today)
         item.mark_available()
 
@@ -150,6 +214,24 @@ class CirculationService:
             return_date=today.isoformat(),
             overdue_days=overdue_days,
             fine=fine,
+        )
+
+    def _to_return_request_dto(self, loan: Loan, today: date | None = None) -> ReturnRequestDTO:
+        today = today or date.today()
+        item = self.items.get(loan.item_id)
+        title = self.titles.get(item.title_id) if item else None
+        reader = self.readers.get(loan.reader_id)
+        return ReturnRequestDTO(
+            loan_id=loan.id,
+            reader_id=loan.reader_id,
+            reader_name=reader.name if reader else "",
+            title=title.title if title else "",
+            barcode=item.barcode if item else "",
+            borrow_date=loan.borrow_date.isoformat() if loan.borrow_date else None,
+            due_date=loan.due_date.isoformat() if loan.due_date else None,
+            is_overdue=loan.is_overdue(today),
+            renew_count=loan.renew_count,
+            status=str(loan.status),
         )
 
     # ---------- 续借（UC-011） ----------
@@ -252,13 +334,13 @@ class CirculationService:
         # 同一事务：结束借阅 + 副本下架 + 生成赔偿记录
         self.loans.save(loan)
         self.items.save(item)
-        self.losts.add(
+        lost = self.losts.add(
             LostItem(loan_id=loan.id, item_id=item.id, lost_date=today, amount=amount)
         )
         self.db.commit()
 
         return LostResultDTO(
-            lost_id=None,
+            lost_id=lost.id,
             loan_id=loan.id,
             title=title.title if title else "",
             amount=amount,
@@ -273,3 +355,15 @@ class CirculationService:
         self.losts.save(lost)
         self.db.commit()
         return {"lost_id": lost.id, "amount": lost.amount, "paid": lost.paid}
+
+    # ---------- 查询罚款与赔偿（UC-016 / UC-022，供馆员缴费台） ----------
+
+    def list_fines(
+        self, reader_id: int | None = None, paid: bool | None = None
+    ) -> list[dict]:
+        return self.fines.list_all(reader_id, paid)
+
+    def list_losts(
+        self, reader_id: int | None = None, paid: bool | None = None
+    ) -> list[dict]:
+        return self.losts.list_all(reader_id, paid)

@@ -1,15 +1,13 @@
 @startuml
 !theme plain
-title 顺序图：办理还书（UC-010，含 UC-015 计算超期罚款）
+title 顺序图：申请还书与审核归还（UC-010，含 UC-015 计算超期罚款）
 skinparam linetype ortho
 autonumber
 
-actor "图书管理员" as Librarian
-
 participant "CirculationController" as Ctrl
 participant "CirculationService" as Svc
-participant "LibraryItemRepository" as ItemRepo
 participant "LoanRepository" as LoanRepo
+participant "LibraryItemRepository" as ItemRepo
 participant "FineCalculator" as Calc
 participant "FineRuleRepository" as RuleRepo
 participant "FineRule" as Rule
@@ -18,92 +16,169 @@ participant "LibraryItem" as Item
 participant "Loan" as Loan
 participant "FineRecord" as Fine
 
-== 1. 请求与权限校验 ==
+'==========================================================
+' 第 1 段：读者发起归还申请（BR-020 申请阶段）
+'==========================================================
 
-Librarian -> Ctrl : POST /api/circulation/return\n{barcode}\nHeader: Bearer token
-Ctrl -> Svc : return_book(barcode, operator)
+== 1. 读者发起归还申请（BORROWED → RETURN_REQUESTED） ==
+
+actor "读者" as Reader
+
+Reader -> Ctrl : POST /api/circulation/return-request\n{loan_id}\nHeader: Bearer token
+Ctrl -> Svc : request_return(loan_id)
+Svc -> LoanRepo : get(loan_id)
+LoanRepo --> Svc : Loan
+
+alt 非本人记录且非 Librarian
+    Svc --> Ctrl : raise PermissionDeniedError
+    Ctrl --> Reader : 403 只能申请归还本人的图书
+else Loan 不存在
+    Svc --> Ctrl : raise NotFoundError
+    Ctrl --> Reader : 404 借阅记录不存在
+else 归属与存在性校验通过
+    Svc -> Loan : request_return()
+    activate Loan
+    alt 已是 RETURN_REQUESTED
+        Loan --> Svc : raise BusinessError
+        Svc --> Ctrl : 400 该图书已提交归还申请，请等待馆员审核
+    else 状态非 BORROWED（如 RETURNED）
+        Loan --> Svc : raise BusinessError
+        Svc --> Ctrl : 400 该借阅记录当前状态不可申请归还
+    else 状态为 BORROWED
+        Loan -> Loan : status = RETURN_REQUESTED\n（副本状态保持 BORROWED，书仍在读者手上）
+        Loan --> Svc : ok
+    end
+    deactivate Loan
+
+    Svc -> LoanRepo : save(loan)
+    Svc -> Svc : commit
+    Svc --> Ctrl : ReturnRequestDTO{loan_id, title,\nstatus = RETURN_REQUESTED}
+    Ctrl --> Reader : 200 归还申请已提交，等待馆员审核
+end
+
+note right of Svc
+  申请期间语义（BR-020）：
+  仍计入在借数量、参与超期检查（BR-003）
+  且不可续借（BR-012）
+end note
+
+'==========================================================
+' 第 2 段：馆员查看待审核申请并审核（BR-020 审核阶段）
+'==========================================================
+
+== 2. 馆员查看待审核归还申请 ==
+
+actor "图书管理员" as Librarian
+
+Librarian -> Ctrl : GET /api/circulation/return-requests\nHeader: Bearer token
+Ctrl -> Svc : list_return_requests(today)
+Svc -> LoanRepo : list_return_requests()
+LoanRepo --> Svc : (loan, reader, item, title) 列表\nstatus = RETURN_REQUESTED
+Svc -> Svc : 逐条计算 is_overdue = due_date < today
+Svc --> Ctrl : [ReturnRequestDTO{reader_name, title,\nbarcode, due_date, is_overdue}, ...]
+Ctrl --> Librarian : 200 待审核归还申请清单
+
+== 3. 分支 A：馆员驳回（未收到图书） ==
+
+Librarian -> Ctrl : POST /api/circulation/return-requests/{loan_id}/reject
+Ctrl -> Svc : reject_return(loan_id, operator)
 
 alt 操作者不是 Librarian
     Svc --> Ctrl : raise PermissionDeniedError
-    Ctrl --> Librarian : 403 仅图书管理员可办理还书
+    Ctrl --> Librarian : 403 权限不足
 else 角色校验通过
-    Svc -> Svc : 记录事务开始
+    Svc -> Loan : reject_return_request()
+    activate Loan
+    Loan -> Loan : status = BORROWED\n（副本状态不变，不产生罚款）
+    Loan --> Svc : ok
+    deactivate Loan
+    Svc -> LoanRepo : save(loan)
+    Svc -> Svc : commit
+    Svc --> Ctrl : ReturnRequestDTO{status = BORROWED}
+    Ctrl --> Librarian : 200 归还申请已驳回
 end
 
-== 2. 校验馆藏（BR-010） ==
+== 4. 分支 B：馆员确认收书（审核通过） ==
 
+Librarian -> Ctrl : POST /api/circulation/return-requests/{loan_id}/approve
+Ctrl -> Svc : approve_return(loan_id, operator)
+
+alt 操作者不是 Librarian
+    Svc --> Ctrl : raise PermissionDeniedError
+    Ctrl --> Librarian : 403 权限不足
+else 角色校验通过
+    Svc -> LoanRepo : get(loan_id)
+    LoanRepo --> Svc : Loan
+
+    alt Loan 状态不是 RETURN_REQUESTED
+        Svc --> Ctrl : raise BusinessError
+        Ctrl --> Librarian : 400 该借阅记录没有待审核的归还申请
+    else 状态校验通过，执行归还结算
+        Svc -> Loan : return_item(today)
+        activate Loan
+        Loan -> Loan : return_date = today\nstatus = RETURNED
+        Loan --> Svc : overdue_days = (today - due_date).days
+        deactivate Loan
+
+        Svc -> Item : mark_available()
+        activate Item
+        Item --> Svc : status = AVAILABLE
+        deactivate Item
+
+        alt overdue_days > 0
+            Svc -> Calc : needs_record / calculate_amount(days, rule)（UC-015）
+            Calc -> RuleRepo : get(item.fine_category)
+            RuleRepo --> Calc : FineRule{grace_days, amount_per_day}
+            Calc -> Rule : get_grace_days() / calculate_fine(...)
+            Rule --> Calc : 宽限期内 0.00，否则 (days - grace) × amount_per_day
+            Calc -> Fine : create(loan_id, amount, paid=false)
+            activate Fine
+            Fine --> Calc : FineRecord
+            deactivate Fine
+            Calc -> FineRepo : add(fine_record)
+            Calc --> Svc : amount
+        else overdue_days <= 0
+            Svc --> Svc : 未超期，罚款 0，不生成记录
+        end
+
+        Svc -> Svc : commit 事务\n（Loan + Item + FineRecord 原子提交）
+
+        alt 提交成功
+            Svc --> Ctrl : ReturnResultDTO{loan_id, title, return_date,\noverdue_days, fine}
+            Ctrl --> Librarian : 200 归还审核通过
+        else 提交失败
+            Svc -> Svc : rollback 事务
+            Svc --> Ctrl : raise InfrastructureError
+            Ctrl --> Librarian : 500 系统繁忙，请稍后重试
+        end
+    end
+end
+
+'==========================================================
+' 第 3 段：现场办理还书（保留通道，条码直办）
+'==========================================================
+
+== 5. 馆员现场办理还书（读者无需先提交申请） ==
+
+Librarian -> Ctrl : POST /api/circulation/return\n{barcode}
+Ctrl -> Svc : return_book(barcode, operator)
 Svc -> ItemRepo : find_by_barcode(barcode)
 ItemRepo --> Svc : LibraryItem
 
 alt 馆藏不存在或非本馆藏书
     Svc --> Ctrl : raise BusinessError
     Ctrl --> Librarian : 400 非本馆藏书
-end
-
-== 3. 查找未归还借阅记录 ==
-
-Svc -> LoanRepo : find_active_by_item(item_id)
-LoanRepo --> Svc : Loan | None
-
-alt 未找到未归还记录
-    Svc --> Ctrl : raise BusinessError
-    Ctrl --> Librarian : 400 未找到该馆藏的借阅记录
-end
-
-== 4. 执行归还 ==
-
-Svc -> Loan : return_item(today)
-activate Loan
-Loan -> Loan : return_date = today\nstatus = RETURNED
-Loan --> Svc : overdue_days = (today - due_date).days
-deactivate Loan
-
-Svc -> Item : mark_available()
-activate Item
-Item --> Svc : status = AVAILABLE
-deactivate Item
-
-== 5. 超期罚款计算（UC-015，含宽限期 BR-005） ==
-
-alt overdue_days <= 0
-    Svc --> Svc : 未超期，罚款 0，不生成记录
-else overdue_days > 0
-    Svc -> Calc : calculate(loan, today)
-    Calc -> RuleRepo : get(item.fine_category)
-    RuleRepo --> Calc : FineRule{grace_days, amount_per_day}
-
-    alt 未配置罚款规则
-        Calc --> Svc : raise InfrastructureError
-        Svc --> Ctrl : 500 未配置罚款规则
-    else 规则存在
-        Calc -> Rule : get_grace_days()
-        Rule --> Calc : grace_days
-        alt overdue_days <= grace_days
-            Calc --> Svc : 0.00（宽限期内，判定超期但不计费）
-        else 超出宽限期
-            Calc -> Rule : calculate_fine(days, amount)
-            Rule --> Calc : chargeable = overdue_days - grace_days\namount = chargeable × amount_per_day
-            Calc -> Fine : create(loan_id, amount, paid=false)
-            activate Fine
-            Fine --> Calc : FineRecord
-            deactivate Fine
-            Calc -> FineRepo : add(fine_record)
-            FineRepo --> Calc : fine_id
-            Calc --> Svc : amount
-        end
+else 馆藏存在
+    Svc -> LoanRepo : find_active_by_item(item_id)\n（匹配 BORROWED 或 RETURN_REQUESTED）
+    LoanRepo --> Svc : Loan | None
+    alt 未找到未归还记录
+        Svc --> Ctrl : raise BusinessError
+        Ctrl --> Librarian : 400 未找到该馆藏的借阅记录
+    else 找到在借记录
+        Svc -> Svc : _settle_return(item, loan, today)\n（同第 4 段结算流程，含 UC-015）
+        Svc --> Ctrl : ReturnResultDTO{loan_id, return_date,\noverdue_days, fine}
+        Ctrl --> Librarian : 200 归还成功
     end
-end
-
-== 6. 提交与返回 ==
-
-alt 提交成功
-    Svc -> Svc : commit 事务\n（Loan + Item + FineRecord 原子提交）
-    Svc --> Ctrl : ReturnResultDTO{loan_id, return_date,\noverdue_days, fine}
-    Ctrl --> Librarian : 200 归还成功（超期 n 天，罚款 x 元）
-else 提交失败
-    Svc -> Svc : rollback 事务
-    Svc --> Ctrl : raise InfrastructureError
-    Ctrl --> Librarian : 500 系统繁忙，请稍后重试
 end
 
 @enduml

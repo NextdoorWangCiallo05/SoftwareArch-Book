@@ -51,6 +51,15 @@ def list_reviews(
     return ok(data=result)
 
 
+@router.get("/api/reviews/pending", response_model=APIResponse)
+def list_pending_reviews(
+    db: Session = Depends(get_db),
+    account: Account = Depends(require_role(Role.ADMIN)),
+) -> APIResponse:
+    """待审核评论列表（UC-021）。`list_reviews` 只返回已公开评论，审核需另取。"""
+    return ok(data=ReviewService(db).list_pending())
+
+
 @router.post("/api/reviews/{review_id}/moderate", response_model=APIResponse)
 def moderate_review(
     review_id: int,

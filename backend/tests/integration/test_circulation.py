@@ -343,3 +343,126 @@ class TestLoanRecords:
                           headers={"Authorization": f"Bearer {lib_token}"})
         assert resp.json()["code"] == 200
         assert "records" in resp.json()["data"]
+
+
+class TestReturnRequestAudit:
+    """BR-020：读者发起归还申请、图书管理员审核（TC-083 ~ TC-094）。"""
+
+    def _borrow(self, client, lib_token) -> int:
+        return _borrow(client, lib_token).json()["data"]["loan_id"]
+
+    def _apply(self, client, token, loan_id):
+        return client.post("/api/circulation/return-request", json={"loan_id": loan_id},
+                           headers={"Authorization": f"Bearer {token}"})
+
+    def _pending(self, client, lib_token):
+        return client.get("/api/circulation/return-requests",
+                          headers={"Authorization": f"Bearer {lib_token}"})
+
+    def test_reader_apply_then_librarian_approve(self, client, reader_token, lib_token,
+                                                 seeded):
+        loan_id = self._borrow(client, lib_token)
+
+        apply_resp = self._apply(client, reader_token, loan_id)
+        assert apply_resp.json()["code"] == 200
+        assert apply_resp.json()["data"]["status"] == "RETURN_REQUESTED"
+        assert self._pending(client, lib_token).json()["data"]["total"] == 1
+
+        approve = client.post(f"/api/circulation/return-requests/{loan_id}/approve",
+                              headers={"Authorization": f"Bearer {lib_token}"})
+        body = approve.json()
+        assert body["code"] == 200
+        assert body["data"]["overdue_days"] == 0
+        assert float(body["data"]["fine"]) == 0.0
+
+        assert self._pending(client, lib_token).json()["data"]["total"] == 0
+        records = client.get(f"/api/circulation/records/{seeded['reader_id']}",
+                             headers={"Authorization": f"Bearer {lib_token}"})
+        assert records.json()["data"]["records"][0]["status"] == "RETURNED"
+
+    def test_apply_requires_ownership(self, client, lib_token, seeded, db):
+        from app.infrastructure.models.orm import ReaderORM
+
+        loan_id = self._borrow(client, lib_token)
+
+        password_hash, salt = hash_with_new_salt("123456")
+        other_account = AccountORM(username="lisi", password_hash=password_hash,
+                                   salt=salt, role="reader")
+        db.add(other_account)
+        db.flush()
+        db.add(ReaderORM(account_id=other_account.id, name="李四",
+                         reader_type="UNDERGRADUATE"))
+        db.commit()
+        token = client.post("/api/auth/login",
+                            json={"username": "lisi", "password": "123456"}).json()["data"]["token"]
+
+        resp = self._apply(client, token, loan_id)
+        assert resp.json()["code"] == 403
+
+    def test_non_librarian_cannot_approve(self, client, reader_token, lib_token, seeded):
+        loan_id = self._borrow(client, lib_token)
+        self._apply(client, reader_token, loan_id)
+        resp = client.post(f"/api/circulation/return-requests/{loan_id}/approve",
+                           headers={"Authorization": f"Bearer {reader_token}"})
+        assert resp.json()["code"] == 403
+
+    def test_reject_restores_borrowed(self, client, reader_token, lib_token, seeded):
+        loan_id = self._borrow(client, lib_token)
+        self._apply(client, reader_token, loan_id)
+
+        resp = client.post(f"/api/circulation/return-requests/{loan_id}/reject",
+                           headers={"Authorization": f"Bearer {lib_token}"})
+        assert resp.json()["code"] == 200
+        assert resp.json()["data"]["status"] == "BORROWED"
+        assert self._pending(client, lib_token).json()["data"]["total"] == 0
+
+        # 驳回后可再次续借（状态已回到 BORROWED）
+        renew = client.post("/api/circulation/renew", json={"loan_id": loan_id},
+                            headers={"Authorization": f"Bearer {reader_token}"})
+        assert renew.json()["code"] == 200
+
+    def test_approve_without_request_rejected(self, client, lib_token, seeded):
+        loan_id = self._borrow(client, lib_token)
+        resp = client.post(f"/api/circulation/return-requests/{loan_id}/approve",
+                           headers={"Authorization": f"Bearer {lib_token}"})
+        assert resp.json()["code"] == 400
+        assert "归还申请" in resp.json()["message"]
+
+    def test_pending_request_keeps_quota_and_blocks_renew(self, client, reader_token,
+                                                          lib_token, seeded):
+        loan_id = self._borrow(client, lib_token)
+        self._apply(client, reader_token, loan_id)
+
+        # 申请中仍占用借阅配额（书未回馆）
+        records = client.get(
+            f"/api/circulation/records/{seeded['reader_id']}?status=RETURN_REQUESTED",
+            headers={"Authorization": f"Bearer {lib_token}"},
+        )
+        assert records.json()["data"]["total"] == 1
+
+        renew = client.post("/api/circulation/renew", json={"loan_id": loan_id},
+                            headers={"Authorization": f"Bearer {reader_token}"})
+        assert renew.json()["code"] == 400
+        assert "归还申请" in renew.json()["message"]
+
+    def test_approve_overdue_still_charges_fine(self, client, reader_token, lib_token,
+                                                seeded, db):
+        loan_id = self._borrow(client, lib_token)
+        loan = db.query(LoanORM).first()
+        loan.due_date = date.today() - timedelta(days=4)
+        db.commit()
+
+        self._apply(client, reader_token, loan_id)
+        resp = client.post(f"/api/circulation/return-requests/{loan_id}/approve",
+                           headers={"Authorization": f"Bearer {lib_token}"})
+        body = resp.json()
+        assert body["code"] == 200
+        assert body["data"]["overdue_days"] == 4
+        assert float(body["data"]["fine"]) == 2.0
+
+    def test_librarian_can_return_on_the_spot(self, client, lib_token, seeded):
+        """现场办理：读者未先申请，馆员凭条码直接归还（保留通道）。"""
+        self._borrow(client, lib_token)
+        resp = client.post("/api/circulation/return", json={"barcode": "ITEM2026000001"},
+                           headers={"Authorization": f"Bearer {lib_token}"})
+        assert resp.json()["code"] == 200

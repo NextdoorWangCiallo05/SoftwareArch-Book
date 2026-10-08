@@ -109,13 +109,13 @@
 
 ## TASK-010 办理还书、超期罚款与赔偿
 
-- **目标**：实现 FR-015、FR-020、FR-021、**FR-027**（UC-010、UC-015、UC-016、UC-022）。
+- **目标**：实现 FR-015、FR-020、FR-021、**FR-027**（UC-010、UC-015、UC-016、UC-022）；其中 FR-015 按 BR-020 实现「读者发起申请 + 馆员审核」两段式还书。
 - **输入规格**：`09-design-model.md` 4.4、`11-sequence-return-book.puml`
 - **允许修改**：`application/circulation_service.py`、`domain/services/fine_calculator.py`、路由与 schemas
 - **禁止修改**：`specs/**`
-- **实现要求**：宽限期逻辑；仅超期且超出宽限期才生成 FineRecord；缴清操作。
-- **验收**：TC-027～TC-036 通过。
-- **建议测试**：TC-027～TC-036。
+- **实现要求**：`Loan.request_return()` / `reject_return_request()` 状态流转；`RETURN_REQUESTED` 计入在借数量与超期检查、禁止续借；审核通过复用归还结算（含宽限期逻辑，仅超期且超出宽限期才生成 FineRecord）；保留馆员现场条码直办通道；缴清操作。
+- **验收**：TC-083～TC-094、TC-027～TC-036 通过。
+- **建议测试**：TC-083～TC-094、TC-027～TC-036。
 
 ## TASK-011 续借（P2）
 

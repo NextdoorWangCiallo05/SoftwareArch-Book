@@ -77,3 +77,29 @@ class ReviewService:
         self.reviews.save(review)
         self.db.commit()
         return {"review_id": review.id, "status": str(review.status)}
+
+    def list_pending(self) -> dict:
+        """待审核评论列表（管理员审核台）。
+
+        `list_approved` 只面向读者展示已公开评论，审核台需要看到 PENDING，
+        故单独提供本方法。
+        """
+        rows = self.reviews.list_all_by_status(ReviewStatus.PENDING)
+        items = []
+        for r in rows:
+            title = self.titles.get(r.title_id)
+            reader = self.readers.get(r.reader_id)
+            items.append(
+                {
+                    "review_id": r.id,
+                    "title_id": r.title_id,
+                    "title": title.title if title else "",
+                    "reader_id": r.reader_id,
+                    "reader_name": reader.name if reader else "",
+                    "rating": r.rating,
+                    "comment": r.comment,
+                    "status": str(r.status),
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                }
+            )
+        return {"total": len(items), "reviews": items}

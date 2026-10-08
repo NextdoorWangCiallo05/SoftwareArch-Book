@@ -144,10 +144,10 @@
 | borrow_date | DATE | N | | — | 借出日期 |
 | due_date | DATE | N | IDX | — | 应还日期 |
 | return_date | DATE | Y | | NULL | 实还日期 |
-| status | VARCHAR(20) | N | IDX | 'BORROWED' | BORROWED / RETURNED / OVERDUE |
+| status | VARCHAR(20) | N | IDX | 'BORROWED' | BORROWED / RETURN_REQUESTED / RETURNED / OVERDUE |
 | renew_count | INTEGER | N | | 0 | 已续借次数（上限 1） |
 
-> **部分唯一索引**：`CREATE UNIQUE INDEX uq_item_active_loan ON loans(item_id) WHERE status='BORROWED'` —— 同一副本同时最多一条在借记录。
+> **部分唯一索引**：`CREATE UNIQUE INDEX uq_item_active_loan ON loans(item_id) WHERE status IN ('BORROWED','RETURN_REQUESTED')` —— 同一副本同时最多一条在借记录（含归还申请中，BR-020）。
 
 ### 2.10 reservations（预约）
 
@@ -296,7 +296,7 @@ library_items 1 ── 0..1 lost_items
 | 约束 | 实现 |
 |---|---|
 | 同一读者最多一张有效借阅证 | `borrow_cards` 部分唯一索引（status='ACTIVE'） |
-| 同一副本同时最多一条在借记录 | `loans` 部分唯一索引（status='BORROWED'） |
+| 同一副本同时最多一条在借记录 | `loans` 部分唯一索引（status IN ('BORROWED','RETURN_REQUESTED')，BR-020） |
 | 同一读者对同一标题最多一条有效预约 | `reservations` 部分唯一索引（status='ACTIVE'） |
 | 同一读者对同一标题仅一条评论 | `book_reviews` 唯一约束 (title_id, reader_id) |
 | 证号/条码/ISBN/用户名唯一 | 各表 UNIQUE |

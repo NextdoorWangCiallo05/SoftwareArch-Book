@@ -4,6 +4,7 @@
   验证两个任务挂接的新接口：
     任务一 续借 -> POST /api/circulation/renew
     任务二 评论 -> POST /api/reviews、GET /api/reviews、POST /api/reviews/{id}/moderate
+  另验证 BR-020 两段式还书：读者发起归还申请 -> 馆员审核（通过/驳回）
 
   前置：先启动后端 python main.py（启动时重建库，保证种子数据干净）
   运行：powershell -ExecutionPolicy Bypass -File demo/curl-demo.ps1
@@ -137,5 +138,46 @@ $ curl.exe -s "http://localhost:8001/api/reviews?title_id=1" \
 '@
 curl.exe -s "$base/api/reviews?title_id=1" -H "Authorization: Bearer $zsToken"
 Write-Host ""
+
+# ---------- 6. 归还：读者发起申请 + 馆员审核（BR-020 两段式） ----------
+Step "读者查询在借记录，取 loan_id" @'
+$ curl.exe -s "http://localhost:8001/api/circulation/records/1?status=BORROWED" \
+    -H "Authorization: Bearer <reader-token>"
+'@
+curl.exe -s "$base/api/circulation/records/1?status=BORROWED" -H "Authorization: Bearer $zsToken"
+Write-Host ""
+
+Step "【BR-020】读者发起归还申请（BORROWED -> RETURN_REQUESTED）" @'
+$ curl.exe -s -X POST http://localhost:8001/api/circulation/return-request \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer <reader-token>" \
+    -d '{"loan_id":2}'
+'@
+curl.exe -s -X POST "$base/api/circulation/return-request" -H "Content-Type: application/json" `
+    -H "Authorization: Bearer $zsToken" -d (Body '{"loan_id":2}')
+Write-Host ""
+
+Step "馆员查看待审核归还申请清单" @'
+$ curl.exe -s http://localhost:8001/api/circulation/return-requests \
+    -H "Authorization: Bearer <librarian-token>"
+'@
+curl.exe -s "$base/api/circulation/return-requests" -H "Authorization: Bearer $libToken"
+Write-Host ""
+
+Step "【BR-020】馆员审核通过（确认收书，结算逾期罚款）" @'
+$ curl.exe -s -X POST http://localhost:8001/api/circulation/return-requests/2/approve \
+    -H "Authorization: Bearer <librarian-token>"
+'@
+curl.exe -s -X POST "$base/api/circulation/return-requests/2/approve" `
+    -H "Authorization: Bearer $libToken"
+Write-Host ""
+
+Step "（备选）馆员驳回归还申请：POST /api/circulation/return-requests/{loan_id}/reject" @'
+$ curl.exe -s -X POST http://localhost:8001/api/circulation/return-requests/1/reject \
+    -H "Authorization: Bearer <librarian-token>"
+'@
+Write-Host "（读者未交书时使用；驳回后借阅记录退回 BORROWED）"
+Write-Host ""
+
 Write-Host "------------------------------------------------------------"
 Write-Host "完成。"

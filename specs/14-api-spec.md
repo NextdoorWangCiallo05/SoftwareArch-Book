@@ -121,15 +121,64 @@ POST /api/circulation/borrow
       400 借阅证无效、借阅已满、有超期未还、存在未缴罚款、该馆藏不可借
 ```
 
-### 3.2 还书
+### 3.2 还书（BR-020：读者申请 + 馆员审核）
+
+#### 3.2.1 读者发起归还申请
+
+```text
+POST /api/circulation/return-request
+权限：读者本人 或 图书管理员（代读者发起）
+请求：{ "loan_id": 1 }
+响应：200 data: { "loan_id": 1, "reader_id": 1, "reader_name": "张三",
+                 "title": "三体", "barcode": "ITEM2026000001",
+                 "borrow_date": "2026-09-13", "due_date": "2026-10-13",
+                 "is_overdue": false, "renew_count": 0,
+                 "status": "RETURN_REQUESTED" }
+失败：404 借阅记录不存在；403 只能申请归还本人的图书；
+      400 该图书已提交归还申请，请等待馆员审核 / 该借阅记录当前状态不可申请归还
+说明：申请期间 Loan 仍计入在借数量与超期检查，副本状态保持 BORROWED，且不可续借。
+```
+
+#### 3.2.2 查询待审核归还申请
+
+```text
+GET /api/circulation/return-requests
+权限：图书管理员
+响应：200 data: { "total": 2, "records": [
+  { "loan_id": 1, "reader_id": 1, "reader_name": "张三", "title": "三体",
+    "barcode": "ITEM2026000001", "borrow_date": "2026-09-13",
+    "due_date": "2026-10-13", "is_overdue": false, "renew_count": 0,
+    "status": "RETURN_REQUESTED" } ] }
+失败：403 非管理员
+```
+
+#### 3.2.3 审核归还申请（通过 / 驳回）
+
+```text
+POST /api/circulation/return-requests/{loan_id}/approve
+权限：图书管理员
+请求：无 body
+响应：200 data: { "loan_id": 1, "title": "三体", "return_date": "2026-10-20",
+                 "overdue_days": 7, "fine": 3.50 }
+失败：403 非管理员；404 借阅记录不存在；400 该借阅记录没有待审核的归还申请
+
+POST /api/circulation/return-requests/{loan_id}/reject
+权限：图书管理员
+请求：无 body
+响应：200 data: { "loan_id": 1, "title": "三体", "status": "BORROWED" }
+失败：403 非管理员；404 借阅记录不存在；400 该借阅记录没有待审核的归还申请
+```
+
+#### 3.2.4 馆员现场办理还书（保留通道）
 
 ```text
 POST /api/circulation/return
-权限：管理员
+权限：图书管理员
 请求：{ "barcode": "ITEM2026000001" }
 响应：200 data: { "loan_id": 1, "title": "三体", "return_date": "2026-10-20",
                  "overdue_days": 7, "fine": 3.50 }
 失败：403 非管理员；400 非本馆藏书、未找到该馆藏的借阅记录
+说明：读者无需先提交归还申请，适用于读者直接到馆台交书的场景。
 ```
 
 ### 3.3 续借
@@ -140,8 +189,9 @@ POST /api/circulation/renew
 请求：{ "loan_id": 1 }
 响应：200 data: { "loan_id": 1, "title": "三体", "new_due_date": "2026-11-13", "renew_count": 1 }
 失败：404 借阅记录不存在
-      400 该图书已归还，无法续借 / 该图书已逾期，请归还后重新借阅 /
-          该图书已达续借上限（1 次） / 该图书已被预约，暂不可续借
+      400 该图书已归还，无法续借 / 该图书已提交归还申请，审核通过前无法续借 /
+          该图书已逾期，请归还后重新借阅 / 该图书已达续借上限（1 次） /
+          该图书已被预约，暂不可续借
 ```
 
 ### 3.4 查询借阅记录

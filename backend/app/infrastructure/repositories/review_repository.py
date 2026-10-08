@@ -51,6 +51,16 @@ class SQLAlchemyReviewRepository:
         )
         return [_to_entity(r) for r in rows]
 
+    def list_all_by_status(self, status: ReviewStatus) -> list[BookReview]:
+        """按状态列出全部标题的评论（供管理员审核台使用）。"""
+        rows = (
+            self.db.query(BookReviewORM)
+            .filter(BookReviewORM.status == status.value)
+            .order_by(BookReviewORM.created_at.asc())
+            .all()
+        )
+        return [_to_entity(r) for r in rows]
+
     def save(self, review: BookReview) -> BookReview:
         orm = None
         if review.id is not None:

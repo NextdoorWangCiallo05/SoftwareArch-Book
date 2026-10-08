@@ -161,3 +161,11 @@ class AdminService:
         saved = self.policies.upsert_fine_rule(rule)
         self.db.commit()
         return saved
+
+    def list_borrow_policies(self):
+        """列出全部借阅规则（供管理端规则页展示当前配置）。"""
+        return self.policies.borrow_policies()
+
+    def list_fine_rules(self):
+        """列出全部罚款规则。"""
+        return self.policies.fine_rules()

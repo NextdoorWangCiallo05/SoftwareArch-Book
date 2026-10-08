@@ -639,3 +639,73 @@ CodeBuddy（orchestrator-agent 真实调用后端 API）
 
 ### Git 提交
 `fix agent contract gap: add /api/auth/me and expose card_no`
+
+---
+
+## 第 20 次使用
+
+### 使用工具
+CodeBuddy
+
+### 使用阶段
+需求变更 / 全栈改造：还书两段式流程（BR-020）
+
+### 输入 Prompt 摘要
+"按理来说读者是可以归还的，帮我改一下吧，包括规格说明书，改成读者发起还书请求、管理员审核" —— 要求把还书从「仅馆员办理」改为**读者发起归还申请 + 图书管理员审核**的两段式流程，并同步修订全部规格说明书、后端接口与前端界面。
+
+### Agent 修改文件
+后端：
+- `backend/app/domain/value_objects/enums.py`（`LoanStatus` 新增 `RETURN_REQUESTED`、`active_statuses()`）
+- `backend/app/domain/entities/circulation.py`（`request_return()` / `reject_return_request()`，`is_overdue` / `renew` 语义）
+- `backend/app/domain/repositories/protocols.py`（新增 `list_return_requests`）
+- `backend/app/infrastructure/models/orm.py`（部分唯一索引 `uq_item_active_loan` 扩展到 `RETURN_REQUESTED`）
+- `backend/app/infrastructure/repositories/circulation_repository.py`（`_ACTIVE_STATUSES`、`list_return_requests`）
+- `backend/app/application/circulation_service.py`（`request_return` / `list_return_requests` / `approve_return` / `reject_return` / `_settle_return`）
+- `backend/app/presentation/routers/circulation_router.py`（4 个新端点 + 发起人校验）
+- `backend/app/schemas/circulation.py`（`ReturnApplyRequest`、`ReturnRequestDTO`）
+- `backend/tests/integration/test_circulation.py`（新增 `TestReturnRequestAudit` 8 条用例）
+
+前端：
+- `frontend/src/constants.js`、`frontend/src/api/index.js`
+- `frontend/src/router/index.js`、`frontend/src/App.vue`
+- `frontend/src/views/reader/MyLoansView.vue`
+- `frontend/src/views/staff/ReturnAuditView.vue`（新建：馆员还书审核台）
+
+规格（`specs/`）：
+- `02-requirements.md`（FR-015 两段式、新增 BR-020、BR-003/BR-012 修订、权限矩阵）
+- `03-use-cases.md`（UC-010 拆为 010.1/010.2/010.3）、`04-use-case-model.puml`
+- `05-domain-model.md`、`06-domain-class-diagram.puml`
+- `09-design-model.md`（4.4 节重写）、`11-sequence-return-book.puml`（整篇重写）
+- `13-database-design.md`、`14-api-spec.md`（3.2 拆为 3.2.1~3.2.4）
+- `15-test-plan.md`（TC-083~TC-095）、`16-tasks.md`（TASK-010）
+- `constitution.md`、`18-review-checklist.md`
+
+Agent 契约：
+- `.codebuddy/skills/return-book/SKILL.md`（2.0 → 2.1）
+- `.codebuddy/agents/circulation-agent/SKILL.md`（2.1 → 2.2）
+
+演示：
+- `demo/curl-demo.ps1`、`demo/chat-demo.md`
+
+### 输出摘要
+- 还书状态机改为 **BR-020**：`BORROWED → RETURN_REQUESTED → RETURNED`（审核通过）；`RETURN_REQUESTED → BORROWED`（审核驳回）；
+- 申请期间语义统一：仍占用借阅配额、参与超期检查（BR-003）、禁止续借（BR-012），**副本状态保持 `BORROWED`**；为此在枚举上提供 `active_statuses()`，仓储统一用 `_ACTIVE_STATUSES` 过滤；
+- 部分唯一索引 `uq_item_active_loan` 由 `status='BORROWED'` 扩展为 `status IN ('BORROWED','RETURN_REQUESTED')`，避免同一副本出现两条在借记录；
+- 保留馆员现场办理通道（凭条码直接还书），无需读者先申请；
+- 新增 REST 端点：`POST /api/circulation/return-request`、`GET /api/circulation/return-requests`、`POST /api/circulation/return-requests/{loan_id}/approve`、`.../reject`；
+- 前端新增读者「申请归还」入口与馆员「还书审核」页。
+
+### 变更影响分析
+- 属**破坏性契约扩展**：`LoanStatus` 新增取值、新增 4 个接口，已同步更新 `14-api-spec.md`、数据库设计、类图、顺序图、测试计划与 Agent 契约，前后端与提示词保持一致；
+- 旧接口 `POST /api/circulation/return` 语义不变（现场办理），向后兼容；
+- 数据库无新增表，仅扩展 `loans` 部分唯一索引条件，旧库在删库重建后生效（种子数据重建）。
+
+### 人工审查结果
+待审查（依据 `18-review-checklist.md` B3 项：还书两段式流程覆盖读者申请 / 馆员审核 / 现场办理三通道）。
+发现并修正：后端与前端代码注释中两段式还书的规则编号一度误写为 BR-013（BR-013 实为「评分范围」），已全部校正为 **BR-020**；测试类 docstring 用例编号同步为 TC-083~TC-094。
+
+### 测试结果
+后端全量 `pytest`：**142 通过**（新增 `TestReturnRequestAudit` 8 条，覆盖申请、越权、非管理员审核、驳回后可续借、无申请审核、申请期占配额 / 禁续借、超期计费、现场办理）。
+
+### Git 提交
+待提交（`feat: two-stage return flow with reader request and librarian audit (BR-020)`）

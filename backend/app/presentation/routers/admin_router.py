@@ -240,6 +240,51 @@ class FineRuleRequest(BaseModel):
     amount_per_day: float
 
 
+@router.get("/api/admin/policies/borrow", response_model=APIResponse)
+def list_borrow_policies(
+    db: Session = Depends(get_db),
+    account: Account = Depends(_admin_only),
+) -> APIResponse:
+    """列出借阅规则当前配置。"""
+    rows = AdminService(db).list_borrow_policies()
+    return ok(
+        data={
+            "total": len(rows),
+            "policies": [
+                {
+                    "reader_type": str(p.reader_type),
+                    "item_type": str(p.item_type),
+                    "max_borrow_count": p.max_borrow_count,
+                    "borrow_days": p.borrow_days,
+                }
+                for p in rows
+            ],
+        }
+    )
+
+
+@router.get("/api/admin/policies/fine", response_model=APIResponse)
+def list_fine_rules(
+    db: Session = Depends(get_db),
+    account: Account = Depends(_admin_only),
+) -> APIResponse:
+    """列出罚款规则当前配置。"""
+    rows = AdminService(db).list_fine_rules()
+    return ok(
+        data={
+            "total": len(rows),
+            "rules": [
+                {
+                    "item_category": r.item_category,
+                    "grace_days": r.grace_days,
+                    "amount_per_day": float(r.amount_per_day),
+                }
+                for r in rows
+            ],
+        }
+    )
+
+
 @router.put("/api/admin/policies/borrow", response_model=APIResponse)
 def upsert_borrow_policy(
     req: BorrowPolicyRequest,

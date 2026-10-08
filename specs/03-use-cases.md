@@ -19,7 +19,7 @@
 | UC-007 | 添加馆藏副本 | SystemAdmin | P1 |
 | UC-008 | 检索图书 | Reader | P1 |
 | UC-009 | 办理借书 | Librarian | P1 |
-| UC-010 | 办理还书 | Librarian | P1 |
+| UC-010 | 申请还书与审核归还 | Reader / Librarian | P1 |
 | UC-011 | 续借图书 | Librarian / Reader | P2 |
 | UC-012 | 查询借阅信息 | Reader / Librarian | P1 |
 | UC-013 | 预约图书 | Reader | P1 |
@@ -204,32 +204,72 @@
 
 ---
 
-## UC-010 办理还书（重点用例）
+## UC-010 申请还书与审核归还（重点用例）
+
+> 本用例采用**读者发起申请 + 图书管理员审核**的两段式流程（BR-020），按参与者视角拆为三个子流程图。
+
+### UC-010.1 发起归还申请（Reader）
+
+- **主要参与者**：Reader（本人）；Librarian 可代理发起
+- **前置条件**：读者已登录（`<<include>> UC-002`）；存在本人处于 `BORROWED` 的 Loan
+- **后置条件**：Loan 状态置为 `RETURN_REQUESTED`；**副本状态保持 `BORROWED`**
+- **基本事件流**：
+  1. 读者在「我的借阅记录」对某条 `BORROWED` 记录点击「申请归还」；
+  2. 系统校验调用者为该记录所属读者本人（或 Librarian）；
+  3. 系统校验 Loan 当前状态为 `BORROWED`；
+  4. 系统将 Loan 状态置为 `RETURN_REQUESTED`；
+  5. 系统返回 `loan_id`、`title`、`status = RETURN_REQUESTED`。
+- **异常事件流**：
+  - 1a. Loan 不存在 → `404`；
+  - 2a. 非本人且非 Librarian → `403`"只能申请归还本人的图书"；
+  - 3a. 已处于 `RETURN_REQUESTED` → `400`"该图书已提交归还申请，请等待馆员审核"；
+  - 3b. 状态为 `RETURNED` → `400`"该借阅记录当前状态不可申请归还"。
+- **业务规则**：申请期间该记录仍计入在借数量、参与超期检查（BR-003），且不可续借（BR-012）。
+
+### UC-010.2 审核归还申请并确认收书（Librarian）
 
 - **主要参与者**：Librarian
-- **前置条件**：管理员已登录；该副本存在处于 `BORROWED` 的 Loan
-- **后置条件**：Loan 置为 `RETURNED`；副本置为 `AVAILABLE`；如超期则生成 FineRecord
+- **前置条件**：管理员已登录；存在状态为 `RETURN_REQUESTED` 的 Loan
+- **后置条件（审核通过）**：Loan 置为 `RETURNED`；副本置为 `AVAILABLE`；如超期则生成 `FineRecord`
+- **后置条件（审核驳回）**：Loan 退回 `BORROWED`；副本状态不变；不产生罚款
 - **基本事件流**：
-  1. 管理员提交馆藏条码；
+  1. 管理员打开「还书审核」，系统列出全部待审核归还申请（含读者、书名、条码、应还日期、是否逾期）；
+  2. 管理员确认已收到图书，点击「确认收书」；
+  3. 系统校验操作者角色为 Librarian；
+  4. 系统校验该 Loan 状态为 `RETURN_REQUESTED`；
+  5. 系统设置 `return_date = 今天`，Loan 状态置为 `RETURNED`；
+  6. 系统将副本状态置为 `AVAILABLE`；
+  7. 若 `return_date > due_date` → `<<include>> UC-015 计算超期罚款`；
+  8. 系统返回 `loan_id`、`title`、`return_date`、`overdue_days`、`fine`。
+- **备选事件流**：
+  - 2a. 管理员未收到图书 → 点击「驳回」→ 系统将 Loan 退回 `BORROWED`，返回 `status = BORROWED`。
+- **异常事件流**：
+  - 3a. 非 Librarian（含 Reader、SystemAdmin）→ `403`；
+  - 4a. 该记录无待审核申请 → `400`"该借阅记录没有待审核的归还申请"。
+
+### UC-010.3 现场办理还书（Librarian，保留通道）
+
+- **主要参与者**：Librarian
+- **前置条件**：管理员已登录；该副本存在处于 `BORROWED` 或 `RETURN_REQUESTED` 的 Loan
+- **基本事件流**：
+  1. 管理员在「还书办理」提交馆藏条码（读者无需先提交申请）；
   2. 系统校验操作者角色为 Librarian；
   3. 系统校验副本存在且确为本馆藏书；
-  4. 系统查找该副本处于 `BORROWED` 的 Loan；
-  5. 系统设置 `return_date = 今天`，Loan 状态置为 `RETURNED`；
-  6. 系统副本状态置为 `AVAILABLE`；
-  7. 若 `return_date > due_date` → `<<include>> UC-015 计算超期罚款`；
-  8. 系统返回 `loan_id`、`return_date`、`overdue_days`、`fine`。
+  4. 系统查找该副本处于**在借**（`BORROWED` / `RETURN_REQUESTED`）的 Loan；
+  5. 执行 UC-010.2 第 5～8 步（含 `<<include>> UC-015 计算超期罚款`）。
 - **异常事件流**：
   - 2a. 非 Librarian → `403`；
   - 3a. 副本不存在或非本馆藏书 → `400`"非本馆藏书"；
   - 4a. 未找到未归还记录 → `400`"未找到该馆藏的借阅记录"。
-- **关联需求**：FR-015、BR-005、BR-010
+
+**关联需求**：FR-015、FR-020、BR-005、BR-010、BR-020
 
 ---
 
 ## UC-011 续借图书（重点用例，P2）
 
 - **主要参与者**：Reader（本人）或 Librarian（代理）
-- **前置条件**：Loan 状态为 `BORROWED` 且未逾期；续借次数 < 1；该标题无他人有效预约
+- **前置条件**：Loan 状态为 `BORROWED` 且未逾期；续借次数 < 1；该标题无他人有效预约（`RETURN_REQUESTED` 的记录不可续借）
 - **后置条件**：`due_date` 延长一个借阅期限；`renew_count` 加 1
 - **基本事件流**：
   1. 用户指定要续借的图书（`loan_id` 或标题 + 借阅记录定位）；
@@ -242,6 +282,7 @@
   8. 系统返回 `loan_id`、`new_due_date`、`renew_count`。
 - **异常事件流**：
   - 3a. Loan 不存在 → `404`；状态为 `RETURNED` → `400`"该图书已归还，无法续借"；
+  - 3b. 状态为 `RETURN_REQUESTED` → `400`"该图书已提交归还申请，审核通过前无法续借"；
   - 4a. 已逾期 → `400`"该图书已逾期，请归还后重新借阅"；
   - 5a. 已达上限 → `400`"该图书已达续借上限（1 次）"；
   - 6a. 存在他人预约 → `400`"该图书已被预约，暂不可续借"。

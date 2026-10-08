@@ -74,7 +74,34 @@
 
 ---
 
-## 4. 演示中发现并修复的契约缺口
+## 4. 演示四：还书（读者申请 + 馆员审核，BR-020）
+
+**用户**：我要还《三体》 → 馆员帮我确认一下这笔归还申请
+
+**路由判断**：还书 → 流通类意图 → 委派 `circulation-agent`（参考 `return-book` skill）
+
+**调用链路**：
+
+| 步骤 | 请求 | 关键响应 |
+|---|---|---|
+| 1 | `GET /api/circulation/records/1?status=BORROWED`（读者令牌） | 取到 `loan_id=2`、`barcode=ITEM2026000002` |
+| 2 | `POST /api/circulation/return-request {"loan_id":2}`（读者令牌） | `status=RETURN_REQUESTED`（书仍在读者手上，副本状态不变） |
+| 3 | `GET /api/circulation/return-requests`（馆员令牌） | `total=1`，含读者"张三"、书名《三体》、条码、应还日期、是否逾期 |
+| 4 | `POST /api/circulation/return-requests/2/approve`（馆员令牌） | `status=RETURNED`、`overdue_days=0`、`fine=0.00`；副本回架；待审清单清空 |
+
+**回复**：归还申请已提交，请将图书交至馆台等待审核 —— 馆员已确认收书，归还完成，本次无逾期罚款。
+
+**验收对照**：
+- 读者发起归还申请 ✅（`BORROWED → RETURN_REQUESTED`，对应 TC-083）
+- 馆员审核通过完成归还 ✅（`RETURN_REQUESTED → RETURNED`，对应 TC-089）
+- 驳回通道：`POST /api/circulation/return-requests/{loan_id}/reject` → `BORROWED` ✅（TC-090）
+- 现场办理（读者未先申请，馆员凭条码直办）：`POST /api/circulation/return {"barcode":..}` ✅（TC-027）
+- 申请期间不可续借 → `400 该图书已提交归还申请，审核通过前无法续借` ✅（TC-095）
+- 越权发起申请 → `403 只能申请归还本人的图书` ✅（TC-084）
+
+---
+
+## 5. 演示中发现并修复的契约缺口
 
 首轮演示暴露出两个会真实卡住 Agent 的问题，均已修复并复验：
 
@@ -87,7 +114,7 @@
 
 同步修改的提示词：`user-manage`(2.1)、`borrow-book`(2.1)、`renew-book`(1.1)、`book-review`(1.1)、`book-search`(2.1)、`orchestrator-agent`(3.1)、`circulation-agent`(2.1)。
 
-## 5. 环境说明
+## 6. 环境说明
 
 当前会话未组队，`circulation-agent` 无法作为独立 Agent 被委派（工具返回 "Not in a team."）。
 按 `orchestrator-agent` 硬约束第 6 条降级：由编排层严格按 `circulation-agent/SKILL.md` 及其引用的 skill 契约自执行，接口路径与字段名未凭记忆编造。

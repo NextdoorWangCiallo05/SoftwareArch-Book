@@ -50,11 +50,21 @@ class ItemStatus(StrEnum):
 
 
 class LoanStatus(StrEnum):
-    """借阅记录状态。"""
+    """借阅记录状态。
+
+    BR-020：还书采用「读者发起申请 + 图书管理员审核」的两段式流程，
+    故在 BORROWED 与 RETURNED 之间引入 RETURN_REQUESTED（归还申请中）。
+    """
 
     BORROWED = "BORROWED"
+    RETURN_REQUESTED = "RETURN_REQUESTED"
     RETURNED = "RETURNED"
     OVERDUE = "OVERDUE"
+
+    @classmethod
+    def active_statuses(cls) -> tuple["LoanStatus", ...]:
+        """仍在读者手上、占用借阅配额的状态（书未真正回馆）。"""
+        return (cls.BORROWED, cls.RETURN_REQUESTED)
 
 
 class CardStatus(StrEnum):

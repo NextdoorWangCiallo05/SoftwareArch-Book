@@ -157,18 +157,48 @@ def check_before_borrow(reader, item) -> None:
         raise BusinessError("该馆藏不可借")
 ```
 
-### 4.4 还书与罚款计算（UC-010 / UC-015）
+### 4.4 还书申请与审核、罚款计算（UC-010 / UC-015，BR-020）
+
+还书为**读者发起申请 + 馆员审核**的两段式流程：申请阶段只改 `Loan` 状态，审核通过才真正结算归还。
 
 ```python
+def request_return(loan_id: int, operator: Account) -> ReturnRequestDTO:
+    loan = loan_repo.get(loan_id)                       # 不存在 → 404
+    if operator.is_reader() and loan.reader_id != operator.reader_id:
+        raise PermissionDeniedError("只能申请归还本人的图书")   # 403
+    loan.request_return()                               # BORROWED → RETURN_REQUESTED；副本不变
+    loan_repo.save(loan)
+    return ReturnRequestDTO(...)
+
+def list_return_requests() -> list[ReturnRequestDTO]:
+    return [ ... for each loan with status RETURN_REQUESTED ... ]
+
+def approve_return(loan_id: int, operator: Account) -> ReturnResultDTO:
+    require(operator.has_role(LIBRARIAN))               # 403
+    loan = loan_repo.get(loan_id)                       # 不存在 → 404
+    if loan.status != RETURN_REQUESTED:
+        raise BusinessError("该借阅记录没有待审核的归还申请")     # 400
+    item = item_repo.get(loan.item_id)
+    return _settle_return(loan, item, today)
+
+def reject_return(loan_id: int, operator: Account) -> ReturnRequestDTO:
+    require(operator.has_role(LIBRARIAN))
+    loan = loan_repo.get(loan_id)
+    loan.reject_return_request()                        # RETURN_REQUESTED → BORROWED
+    loan_repo.save(loan)
+
 def return_book(barcode: str, operator: Account) -> ReturnResultDTO:
+    """现场办理保留通道：条码直办，无需读者先提交申请。"""
     require(operator.has_role(LIBRARIAN))
     item = item_repo.find_by_barcode(barcode)
     if item is None or not item.belongs_to_library:
         raise BusinessError("非本馆藏书")
-    loan = loan_repo.find_active_by_item(item.id)
+    loan = loan_repo.find_active_by_item(item.id)       # 匹配 BORROWED / RETURN_REQUESTED
     if loan is None:
         raise BusinessError("未找到该馆藏的借阅记录")
+    return _settle_return(loan, item, today)
 
+def _settle_return(loan, item, today) -> ReturnResultDTO:
     overdue_days = loan.return_item(today)              # 设置 return_date，状态 → RETURNED
     item.mark_available()                               # BORROWED → AVAILABLE
 
@@ -178,6 +208,9 @@ def return_book(barcode: str, operator: Account) -> ReturnResultDTO:
     return ReturnResultDTO(loan_id=loan.id, return_date=today,
                            overdue_days=overdue_days, fine=fine)
 ```
+
+> `LoanStatus.active_statuses()` = `(BORROWED, RETURN_REQUESTED)`，用于在借数量统计、超期检查与"按副本查找在借记录"。
+> `RETURN_REQUESTED` 期间图书仍在读者手上，故继续占用借阅配额、参与 BR-003 超期校验，且不可续借（BR-012）。
 
 **罚款算法（含宽限期）**
 
@@ -305,7 +338,7 @@ def report_lost(barcode: str, operator: Account) -> LostResultDTO:
 | UC-007 加副本 | admin_router | `AdminService.add_item` | `LibraryItem` 子类（Factory） | ItemRepo | `ItemRequest` | `ItemDTO` | NotFound(404) | 写 |
 | UC-008 检索 | catalog_router | `CatalogService.search` | `BookTitle` | TitleRepo | query params | `BookListDTO` | — | 读 |
 | UC-009 借书 | circulation_router | `CirculationService.borrow` | `Loan`、`BorrowPolicy`、`CirculationPolicyChecker` | LoanRepo、ItemRepo、CardRepo | `BorrowRequest` | `BorrowResultDTO` | Permission/NotFound/Business | **写（同一事务）** |
-| UC-010 还书 | circulation_router | `CirculationService.return_book` | `Loan`、`FineRule`、`FineCalculator` | LoanRepo、ItemRepo、FineRepo | `ReturnRequest` | `ReturnResultDTO` | Permission/Business | **写（同一事务）** |
+| UC-010 申请还书与审核 | circulation_router | `CirculationService.request_return` / `list_return_requests` / `approve_return` / `reject_return` / `return_book` | `Loan`、`FineRule`、`FineCalculator` | LoanRepo、ItemRepo、FineRepo | `ReturnApplyRequest`、`ReturnRequest` | `ReturnRequestDTO`、`ReturnResultDTO` | Permission/NotFound/Business | **写（审核通过为同一事务）** |
 | UC-011 续借 | circulation_router | `CirculationService.renew` | `Loan`、`BorrowPolicy`、`Reservation` | LoanRepo、ReservationRepo | `RenewRequest` | `RenewResultDTO` | Business/NotFound | 写 |
 | UC-012 查借阅 | circulation_router | `CirculationService.list_loans` | `Loan` | LoanRepo | path + query | `LoanListDTO` | Permission(403) | 读 |
 | UC-013 预约 | reservation_router | `ReservationService.create` | `Reservation` | ReservationRepo、LoanRepo、TitleRepo | `ReserveRequest` | `ReservationDTO` | NotFound/Business | 写 |
@@ -390,5 +423,5 @@ PUT  /api/admin/policies/fine      {item_category, grace_days, amount_per_day}
 | 业务规则不满足 | `BusinessError` | 400 | 回滚 |
 | 底层故障 | `InfrastructureError` | 500 | 回滚 |
 
-写事务用例：注册、登录、办证、注销证、加管理员、加标题、加副本、借书、还书、续借、预约、取消预约、缴清罚款、提交评论、审核评论、规则维护。
+写事务用例：注册、登录、办证、注销证、加管理员、加标题、加副本、借书、发起归还申请、审核归还（通过 / 驳回）、现场还书、续借、预约、取消预约、缴清罚款、提交评论、审核评论、规则维护。
 读用例不开启写事务。

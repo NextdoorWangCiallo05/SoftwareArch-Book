@@ -50,7 +50,9 @@ Controller 只负责：接收请求、参数校验转发、调用 Application Se
 
 图书管理员、系统管理员和读者权限必须区分：
 
-- 借书、还书：仅 Librarian；
+- 借书：仅 Librarian；
+- 续借、发起还书申请：Reader 本人（Librarian 可代读者办理）；
+- 审核还书申请、现场办理还书：仅 Librarian；
 - 借阅证、图书、规则维护：仅 SystemAdmin；
 - 查询自己的借阅信息：Reader 本人；
 - 查询任意读者的借阅信息：Librarian。

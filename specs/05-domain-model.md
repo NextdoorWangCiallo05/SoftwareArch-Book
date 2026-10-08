@@ -68,7 +68,7 @@
 
 ### 3.3 Librarian（图书管理员 · 实体）
 
-- **职责**：代理读者办理借书、还书、续借、标记罚款缴清；可查询任意读者借阅信息。
+- **职责**：代理读者办理借书、续借、标记罚款缴清；**审核读者提交的归还申请并确认收书**（或凭条码现场办理还书）；可查询任意读者借阅信息。
 - **关键属性**：`id`、`account_id`、`name`、`employee_no`
 - **关键方法**：`borrow_book(...)`、`return_book(...)`、`mark_fine_paid(...)`（均为应用服务编排入口，领域对象只提供状态变更方法）。
 - **约束**：不可办理借阅证与图书维护（BR-011）。
@@ -127,18 +127,22 @@
 
 ### 5.1 Loan（借阅记录 · 实体）
 
-- **职责**：记录一次借出与归还的完整生命周期，是续借与罚款计算的载体。
+- **职责**：记录一次借出与归还的完整生命周期，是续借、归还申请审核与罚款计算的载体。
 - **关键属性**：`id`、`reader_id`、`item_id`、`borrow_date`、`due_date`、`return_date`、`status`（`LoanStatus`）、`renew_count`
 - **关键方法**：
-  - `is_overdue(today) -> bool`；
+  - `is_overdue(today) -> bool`：**在借状态**（`BORROWED` / `RETURN_REQUESTED`）且 `due_date < today` 时为真；
   - `renew(policy)`：校验"未逾期 + 次数未满 + 无他人有效预约"后延长 `due_date`，`renew_count += 1`，返回新的 `due_date`；
-  - `return_item(today)`：设置 `return_date`，状态置 `RETURNED`，返回逾期天数。
+  - `request_return()`：读者发起归还申请，`BORROWED → RETURN_REQUESTED`（BR-020），**不改变副本状态**；
+  - `reject_return_request()`：馆员驳回申请，`RETURN_REQUESTED → BORROWED`，不产生罚款、不改副本状态；
+  - `return_item(today)`：设置 `return_date`，状态置 `RETURNED`，返回逾期天数。仅在**馆员审核通过或现场办理**时调用。
 - **约束**：
   - `due_date = borrow_date + BorrowPolicy.get_borrow_days(reader_type)`；
   - 续借上限 1 次（BR-012）；
-  - 已归还或已逾期不可续借。
-- **LoanStatus（枚举）**：`BORROWED` / `RETURNED` / `OVERDUE`
-- **关系**：`Reader 1 ── * Loan`；`LibraryItem 1 ── * Loan`（同一副本历史上可有多条记录，同时最多一条 `BORROWED`）
+  - 已归还、已逾期或已提交归还申请（`RETURN_REQUESTED`）不可续借；
+  - `RETURN_REQUESTED` 仍属**在借**：占用借阅数量配额、参与超期检查（BR-003）。
+- **状态机（BR-020）**：`BORROWED → RETURN_REQUESTED → RETURNED`（审核通过）；`RETURN_REQUESTED → BORROWED`（审核驳回）
+- **LoanStatus（枚举）**：`BORROWED` / `RETURN_REQUESTED` / `RETURNED` / `OVERDUE`
+- **关系**：`Reader 1 ── * Loan`；`LibraryItem 1 ── * Loan`（同一副本历史上可有多条记录，同时最多一条**在借**记录 `BORROWED` / `RETURN_REQUESTED`）
 
 ### 5.2 Reservation（预约 · 实体）
 
@@ -187,7 +191,7 @@
 
 ### 6.3 FineCalculator（罚款计算 · 领域服务）
 
-- **职责**：在还书流程中，根据 `Loan` 与对应副本的 `fine_category` 委托 `FineRule` 计算金额并生成 `FineRecord`。
+- **职责**：在还书流程（馆员审核通过 / 现场办理）中，根据 `Loan` 与对应副本的 `fine_category` 委托 `FineRule` 计算金额并生成 `FineRecord`。
 - **关键方法**：`calculate(loan, return_date) -> FineRecord | None`
 - **约束**：本身不持有单价，只做编排与结果封装。
 

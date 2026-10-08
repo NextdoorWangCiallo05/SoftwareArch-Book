@@ -19,6 +19,12 @@ class RenewRequest(BaseModel):
     loan_id: int
 
 
+class ReturnApplyRequest(BaseModel):
+    """读者发起归还申请（BR-020）。"""
+
+    loan_id: int
+
+
 class BorrowResultDTO(BaseModel):
     loan_id: int | None = None
     title: str
@@ -67,3 +73,18 @@ class FineDTO(BaseModel):
     loan_id: int | None = None
     amount: Decimal
     paid: bool
+
+
+class ReturnRequestDTO(BaseModel):
+    """归还申请明细（读者端状态展示 / 馆员端审核台）。"""
+
+    loan_id: int | None = None
+    reader_id: int | None = None
+    reader_name: str = ""
+    title: str = ""
+    barcode: str = ""
+    borrow_date: str | None = None
+    due_date: str | None = None
+    is_overdue: bool = False
+    renew_count: int = 0
+    status: str = ""

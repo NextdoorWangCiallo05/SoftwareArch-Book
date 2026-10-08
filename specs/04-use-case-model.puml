@@ -39,7 +39,7 @@ rectangle "图书管理系统" {
   '----- 流通 -----
   usecase "UC-009 办理借书" as UC009
   usecase "UC-009A 验证借阅证" as UC009A
-  usecase "UC-010 办理还书" as UC010
+  usecase "UC-010 申请还书与审核归还" as UC010
   usecase "UC-011 续借图书" as UC011
   usecase "UC-012 查询借阅信息" as UC012
   usecase "UC-013 预约图书" as UC013
@@ -61,6 +61,7 @@ rectangle "图书管理系统" {
 Reader --> UC001
 Reader --> UC002
 Reader --> UC008
+Reader --> UC010
 Reader --> UC011
 Reader --> UC012
 Reader --> UC013
@@ -99,6 +100,16 @@ UC013 ..> UC002 : <<include>>
 UC017 ..> UC002 : <<include>>
 
 UC013 ..> UC009 : <<extend>>\n(图书不可借时转为预约)
+
+note bottom of UC010
+  BR-020 两段式还书：
+  1) 读者提交归还申请
+     BORROWED → RETURN_REQUESTED
+  2) 馆员确认收书
+     → RETURNED（触发 UC-015）
+     或驳回 → BORROWED
+  审核通过前仍计入在借、不可续借
+end note
 
 note right of UC015
   由还书流程自动触发：

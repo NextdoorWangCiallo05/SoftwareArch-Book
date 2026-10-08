@@ -74,3 +74,23 @@ class ReservationService:
         self.reservations.save(resv)
         self.db.commit()
         return {"reservation_id": resv.id, "status": str(resv.status)}
+
+    # ---------- 查询预约（供前端"我的预约"使用） ----------
+
+    def list_by_reader(self, reader_id: int) -> dict:
+        rows = self.reservations.list_by_reader(reader_id)
+        items = []
+        for resv in rows:
+            title = self.titles.get(resv.title_id)
+            items.append(
+                {
+                    "reservation_id": resv.id,
+                    "title_id": resv.title_id,
+                    "title": title.title if title else "",
+                    "created_at": resv.created_at.isoformat() if resv.created_at else None,
+                    "expires_at": resv.expires_at.isoformat() if resv.expires_at else None,
+                    "status": str(resv.status),
+                    "queue_position": resv.queue_position,
+                }
+            )
+        return {"total": len(items), "reservations": items}

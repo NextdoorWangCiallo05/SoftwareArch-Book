@@ -133,3 +133,13 @@ class SQLAlchemyReservationRepository:
             .all()
         )
         return [_to_entity(r) for r in rows]
+
+    def list_by_reader(self, reader_id: int) -> list[Reservation]:
+        """某读者的全部预约（供前端展示"我的预约"）。"""
+        rows = (
+            self.db.query(ReservationORM)
+            .filter(ReservationORM.reader_id == reader_id)
+            .order_by(ReservationORM.created_at.desc())
+            .all()
+        )
+        return [_to_entity(r) for r in rows]

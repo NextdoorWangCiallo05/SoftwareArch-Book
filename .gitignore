@@ -23,5 +23,8 @@ Thumbs.db
 *.tmp
 
 # 运行日志（本地调试产物）
-server.log
-server.err
+server*.log
+server*.err
+
+# 测试报告生成脚本的临时中间文件
+verify_return_body.json

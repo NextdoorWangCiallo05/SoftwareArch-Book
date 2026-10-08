@@ -166,7 +166,7 @@ class LoanORM(Base):
             "uq_item_active_loan",
             "item_id",
             unique=True,
-            sqlite_where=text("status = 'BORROWED'"),
+            sqlite_where=text("status IN ('BORROWED', 'RETURN_REQUESTED')"),
         ),
     )
 

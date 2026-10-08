@@ -31,6 +31,7 @@ package "值对象 / 枚举" {
   }
   enum LoanStatus {
     BORROWED
+    RETURN_REQUESTED
     RETURNED
     OVERDUE
   }
@@ -181,6 +182,8 @@ package "流通" {
     --
     + is_overdue(today: Date): bool
     + renew(policy: BorrowPolicy): Date
+    + request_return(): void
+    + reject_return_request(): void
     + return_item(today: Date): Integer
   }
 
@@ -335,6 +338,14 @@ note right of LibraryItem
   CHINESE_BOOK / FOREIGN_BOOK /
   CHINESE_MAGAZINE / FOREIGN_MAGAZINE /
   THESIS
+end note
+
+note bottom of Loan
+  BR-020 还书为两段式：
+  BORROWED → RETURN_REQUESTED（读者申请）
+  → RETURNED（馆员审核通过）
+  或 → BORROWED（馆员驳回）
+  RETURN_REQUESTED 仍计入在借、不可续借
 end note
 
 note bottom of Reservation

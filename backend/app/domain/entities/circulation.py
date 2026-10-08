@@ -23,8 +23,8 @@ class Loan:
     renew_count: int = 0
 
     def is_overdue(self, today: date) -> bool:
-        """是否超期未还。"""
-        return self.status == LoanStatus.BORROWED and self.due_date < today
+        """是否超期未还（归还申请中并不解除超期，书仍在读者手上）。"""
+        return self.status in LoanStatus.active_statuses() and self.due_date < today
 
     def renew(
         self,
@@ -36,6 +36,8 @@ class Loan:
 
         基数为原 due_date，避免逾期前突击续借造成期限损失。
         """
+        if self.status == LoanStatus.RETURN_REQUESTED:
+            raise BusinessError("该图书已提交归还申请，审核通过前无法续借")
         if self.status != LoanStatus.BORROWED:
             raise BusinessError("该图书已归还，无法续借")
         if self.is_overdue(today):
@@ -48,6 +50,25 @@ class Loan:
         self.due_date = self.due_date + timedelta(days=borrow_days)
         self.renew_count += 1
         return self.due_date
+
+    def request_return(self) -> None:
+        """读者发起归还申请（BR-020）：BORROWED → RETURN_REQUESTED。
+
+        仅状态流转，不改副本状态——书仍在读者手上，等馆员确认收书。
+        """
+        if self.status == LoanStatus.RETURN_REQUESTED:
+            raise BusinessError("该图书已提交归还申请，请等待馆员审核")
+        if self.status != LoanStatus.BORROWED:
+            raise BusinessError("该借阅记录当前状态不可申请归还")
+
+        self.status = LoanStatus.RETURN_REQUESTED
+
+    def reject_return_request(self) -> None:
+        """馆员驳回归还申请：RETURN_REQUESTED → BORROWED（书未收到）。"""
+        if self.status != LoanStatus.RETURN_REQUESTED:
+            raise BusinessError("该借阅记录没有待审核的归还申请")
+
+        self.status = LoanStatus.BORROWED
 
     def return_item(self, today: date) -> int:
         """归还，返回逾期天数（未超期为 0 或负数时归一为 0）。"""

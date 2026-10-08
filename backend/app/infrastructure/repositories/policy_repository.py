@@ -55,6 +55,17 @@ class SQLAlchemyPolicyRepository:
 
     # ---------- 罚款规则 ----------
 
+    def fine_rules(self) -> list[FineRule]:
+        rows = self.db.query(FineRuleORM).all()
+        return [
+            FineRule(
+                item_category=r.item_category,
+                grace_days=r.grace_days,
+                amount_per_day=Decimal(str(r.amount_per_day)),
+            )
+            for r in rows
+        ]
+
     def get_fine_rule(self, item_category: str) -> FineRule | None:
         orm = (
             self.db.query(FineRuleORM)

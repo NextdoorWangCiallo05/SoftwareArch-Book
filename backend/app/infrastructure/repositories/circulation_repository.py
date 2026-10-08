@@ -8,11 +8,17 @@ from sqlalchemy.orm import Session
 from app.domain.entities.circulation import FineRecord, Loan, LostItem
 from app.domain.value_objects.enums import ItemType, LoanStatus
 from app.infrastructure.models.orm import (
+    BookTitleORM,
     FineRecordORM,
     LibraryItemORM,
     LoanORM,
     LostItemORM,
+    ReaderORM,
 )
+
+
+_ACTIVE_STATUSES = tuple(s.value for s in LoanStatus.active_statuses())
+"""在借状态（BORROWED / RETURN_REQUESTED）：书仍在读者手上，占用配额、计入超期。"""
 
 
 def _to_loan(orm: LoanORM) -> Loan:
@@ -85,7 +91,7 @@ class SQLAlchemyLoanRepository:
     def find_active_by_item(self, item_id: int) -> Loan | None:
         orm = (
             self.db.query(LoanORM)
-            .filter(LoanORM.item_id == item_id, LoanORM.status == LoanStatus.BORROWED.value)
+            .filter(LoanORM.item_id == item_id, LoanORM.status.in_(_ACTIVE_STATUSES))
             .first()
         )
         return _to_loan(orm) if orm else None
@@ -94,7 +100,7 @@ class SQLAlchemyLoanRepository:
         query = (
             self.db.query(LoanORM)
             .join(LibraryItemORM, LoanORM.item_id == LibraryItemORM.id)
-            .filter(LoanORM.reader_id == reader_id, LoanORM.status == LoanStatus.BORROWED.value)
+            .filter(LoanORM.reader_id == reader_id, LoanORM.status.in_(_ACTIVE_STATUSES))
         )
         if item_type is not None:
             query = query.filter(LibraryItemORM.item_type == str(item_type))
@@ -105,7 +111,7 @@ class SQLAlchemyLoanRepository:
             self.db.query(LoanORM)
             .filter(
                 LoanORM.reader_id == reader_id,
-                LoanORM.status == LoanStatus.BORROWED.value,
+                LoanORM.status.in_(_ACTIVE_STATUSES),
                 LoanORM.due_date < today,
             )
             .count()
@@ -117,7 +123,7 @@ class SQLAlchemyLoanRepository:
             .join(LibraryItemORM, LoanORM.item_id == LibraryItemORM.id)
             .filter(
                 LoanORM.reader_id == reader_id,
-                LoanORM.status == LoanStatus.BORROWED.value,
+                LoanORM.status.in_(_ACTIVE_STATUSES),
                 LibraryItemORM.title_id == title_id,
             )
             .count()
@@ -130,6 +136,31 @@ class SQLAlchemyLoanRepository:
             query = query.filter(LoanORM.status == status.value)
         rows = query.order_by(LoanORM.borrow_date.desc()).all()
         return [_to_loan(r) for r in rows]
+
+    def list_return_requests(self) -> list[dict]:
+        """待审核的归还申请（BR-020），连带读者与书名供馆员审核台展示。"""
+        rows = (
+            self.db.query(LoanORM, ReaderORM, LibraryItemORM, BookTitleORM)
+            .join(ReaderORM, LoanORM.reader_id == ReaderORM.id)
+            .join(LibraryItemORM, LoanORM.item_id == LibraryItemORM.id)
+            .join(BookTitleORM, LibraryItemORM.title_id == BookTitleORM.id)
+            .filter(LoanORM.status == LoanStatus.RETURN_REQUESTED.value)
+            .order_by(LoanORM.due_date.asc())
+            .all()
+        )
+        return [
+            {
+                "loan_id": loan.id,
+                "reader_id": reader.id,
+                "reader_name": reader.name,
+                "title": title.title,
+                "barcode": item.barcode,
+                "borrow_date": loan.borrow_date.isoformat() if loan.borrow_date else None,
+                "due_date": loan.due_date.isoformat() if loan.due_date else None,
+                "renew_count": loan.renew_count,
+            }
+            for loan, reader, item, title in rows
+        ]
 
 
 class SQLAlchemyFineRepository:
@@ -163,6 +194,36 @@ class SQLAlchemyFineRepository:
         orm.paid = fine.paid
         self.db.flush()
         return fine
+
+    def list_all(
+        self, reader_id: int | None = None, paid: bool | None = None
+    ) -> list[dict]:
+        """列出罚款记录（连带读者与书名，供前端缴费台展示）。"""
+        query = (
+            self.db.query(FineRecordORM, LoanORM, ReaderORM, BookTitleORM)
+            .join(LoanORM, FineRecordORM.loan_id == LoanORM.id)
+            .join(ReaderORM, LoanORM.reader_id == ReaderORM.id)
+            .join(LibraryItemORM, LoanORM.item_id == LibraryItemORM.id)
+            .join(BookTitleORM, LibraryItemORM.title_id == BookTitleORM.id)
+        )
+        if reader_id is not None:
+            query = query.filter(LoanORM.reader_id == reader_id)
+        if paid is not None:
+            query = query.filter(FineRecordORM.paid.is_(paid))
+
+        rows = query.order_by(FineRecordORM.id.desc()).all()
+        return [
+            {
+                "fine_id": fine.id,
+                "loan_id": loan.id,
+                "reader_id": reader.id,
+                "reader_name": reader.name,
+                "title": title.title,
+                "amount": float(fine.amount),
+                "paid": bool(fine.paid),
+            }
+            for fine, loan, reader, title in rows
+        ]
 
 
 class SQLAlchemyLostRepository:
@@ -202,3 +263,35 @@ class SQLAlchemyLostRepository:
         orm.paid = lost.paid
         self.db.flush()
         return lost
+
+    def list_all(
+        self, reader_id: int | None = None, paid: bool | None = None
+    ) -> list[dict]:
+        """列出赔偿记录（连带读者与书名，供前端赔偿台展示）。"""
+        query = (
+            self.db.query(LostItemORM, LoanORM, ReaderORM, BookTitleORM)
+            .join(LoanORM, LostItemORM.loan_id == LoanORM.id)
+            .join(ReaderORM, LoanORM.reader_id == ReaderORM.id)
+            .join(LibraryItemORM, LoanORM.item_id == LibraryItemORM.id)
+            .join(BookTitleORM, LibraryItemORM.title_id == BookTitleORM.id)
+        )
+        if reader_id is not None:
+            query = query.filter(LoanORM.reader_id == reader_id)
+        if paid is not None:
+            query = query.filter(LostItemORM.paid.is_(paid))
+
+        rows = query.order_by(LostItemORM.id.desc()).all()
+        return [
+            {
+                "lost_id": lost.id,
+                "loan_id": loan.id,
+                "item_id": lost.item_id,
+                "reader_id": reader.id,
+                "reader_name": reader.name,
+                "title": title.title,
+                "amount": float(lost.amount),
+                "lost_date": lost.lost_date.isoformat() if lost.lost_date else None,
+                "paid": bool(lost.paid),
+            }
+            for lost, loan, reader, title in rows
+        ]
