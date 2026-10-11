@@ -1,20 +1,22 @@
 """系统管理路由（FR-004 ~ FR-007、FR-028 ~ FR-030）。
 
 全部接口仅 SystemAdmin 可访问（BR-011）。
+服务实例由组合根 `app.presentation.dependencies` 注入，本层不直接依赖基础设施。
 """
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 from app.application.admin_service import AdminService
 from app.application.catalog_service import CatalogService
 from app.core.response import APIResponse, ok
-from app.core.security import require_role
 from app.domain.entities.identity import Account
 from app.domain.value_objects.enums import ReaderType, Role
-from app.infrastructure.db.base import get_db
-from app.infrastructure.repositories.reader_repository import SQLAlchemyBorrowCardRepository
+from app.presentation.dependencies import (
+    get_admin_service,
+    get_catalog_service,
+    require_role,
+)
 from app.schemas.admin import (
     CreateLibrarianRequest,
     IssueCardRequest,
@@ -64,20 +66,20 @@ def _reader_dto(reader, card_no: str | None = None) -> dict:
 @router.post("/api/admin/cards", response_model=APIResponse)
 def issue_card(
     req: IssueCardRequest,
-    db: Session = Depends(get_db),
+    service: AdminService = Depends(get_admin_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
-    card = AdminService(db).issue_card(req.reader_id)
+    card = service.issue_card(req.reader_id)
     return ok(data=_card_dto(card), message="借阅证办理成功")
 
 
 @router.post("/api/admin/cards/{card_id}/revoke", response_model=APIResponse)
 def revoke_card(
     card_id: int,
-    db: Session = Depends(get_db),
+    service: AdminService = Depends(get_admin_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
-    card = AdminService(db).revoke_card(card_id)
+    card = service.revoke_card(card_id)
     return ok(data=_card_dto(card), message="借阅证已注销")
 
 
@@ -87,10 +89,10 @@ def revoke_card(
 @router.post("/api/admin/librarians", response_model=APIResponse)
 def add_librarian(
     req: CreateLibrarianRequest,
-    db: Session = Depends(get_db),
+    service: AdminService = Depends(get_admin_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
-    staff = AdminService(db).add_librarian(req)
+    staff = service.add_librarian(req)
     return ok(data=_staff_dto(staff), message="管理员已添加")
 
 
@@ -98,10 +100,10 @@ def add_librarian(
 def list_librarians(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
+    service: AdminService = Depends(get_admin_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
-    rows, total = AdminService(db).list_librarians(page, page_size)
+    rows, total = service.list_librarians(page, page_size)
     return ok(data={"total": total, "librarians": [_staff_dto(r) for r in rows]})
 
 
@@ -109,20 +111,20 @@ def list_librarians(
 def update_librarian(
     librarian_id: int,
     req: UpdateLibrarianRequest,
-    db: Session = Depends(get_db),
+    service: AdminService = Depends(get_admin_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
-    staff = AdminService(db).update_librarian(librarian_id, req)
+    staff = service.update_librarian(librarian_id, req)
     return ok(data=_staff_dto(staff), message="管理员信息已更新")
 
 
 @router.delete("/api/admin/librarians/{librarian_id}", response_model=APIResponse)
 def remove_librarian(
     librarian_id: int,
-    db: Session = Depends(get_db),
+    service: AdminService = Depends(get_admin_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
-    AdminService(db).remove_librarian(librarian_id)
+    service.remove_librarian(librarian_id)
     return ok(message="管理员已删除")
 
 
@@ -135,15 +137,11 @@ def list_readers(
     reader_type: ReaderType | None = Query(default=None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
+    service: AdminService = Depends(get_admin_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
-    rows, total = AdminService(db).list_readers(name, reader_type, page, page_size)
-    card_repo = SQLAlchemyBorrowCardRepository(db)
-    readers = []
-    for row in rows:
-        card = card_repo.find_active_by_reader(row.id)
-        readers.append(_reader_dto(row, card.card_no if card else None))
+    rows, total = service.list_readers(name, reader_type, page, page_size)
+    readers = [_reader_dto(row, service.active_card_no(row.id)) for row in rows]
     return ok(data={"total": total, "readers": readers})
 
 
@@ -151,33 +149,33 @@ def list_readers(
 def update_reader(
     reader_id: int,
     req: ReaderUpdateRequest,
-    db: Session = Depends(get_db),
+    service: AdminService = Depends(get_admin_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
-    reader = AdminService(db).update_reader(reader_id, req)
+    reader = service.update_reader(reader_id, req)
     return ok(data=_reader_dto(reader), message="读者信息已更新")
 
 
 @router.post("/api/admin/readers/{reader_id}/deactivate", response_model=APIResponse)
 def deactivate_reader(
     reader_id: int,
-    db: Session = Depends(get_db),
+    service: AdminService = Depends(get_admin_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
-    reader = AdminService(db).deactivate_reader(reader_id)
+    reader = service.deactivate_reader(reader_id)
     return ok(data=_reader_dto(reader), message="读者已停用")
 
 
-# ---------- 图书与馆藏 ----------
+# ---------- 图书与馆藏（FR-030） ----------
 
 
 @router.post("/api/admin/titles", response_model=APIResponse)
 def add_title(
     req: TitleCreateRequest,
-    db: Session = Depends(get_db),
+    service: CatalogService = Depends(get_catalog_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
-    title = CatalogService(db).add_title(req)
+    title = service.add_title(req)
     return ok(data={"title_id": title.id, "title": title.title}, message="图书已添加")
 
 
@@ -185,10 +183,10 @@ def add_title(
 def update_title(
     title_id: int,
     req: TitleUpdateRequest,
-    db: Session = Depends(get_db),
+    service: CatalogService = Depends(get_catalog_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
-    title = CatalogService(db).update_title(title_id, req)
+    title = service.update_title(title_id, req)
     return ok(data={"title_id": title.id, "title": title.title, "price": str(title.price)},
               message="图书信息已更新")
 
@@ -196,20 +194,20 @@ def update_title(
 @router.post("/api/admin/titles/{title_id}/deactivate", response_model=APIResponse)
 def deactivate_title(
     title_id: int,
-    db: Session = Depends(get_db),
+    service: CatalogService = Depends(get_catalog_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
-    CatalogService(db).deactivate_title(title_id)
+    service.deactivate_title(title_id)
     return ok(message="图书已下架")
 
 
 @router.post("/api/admin/items", response_model=APIResponse)
 def add_items(
     req: ItemCreateRequest,
-    db: Session = Depends(get_db),
+    service: CatalogService = Depends(get_catalog_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
-    items = CatalogService(db).add_items(req)
+    items = service.add_items(req)
     return ok(data={"items": [{"item_id": i.id, "barcode": i.barcode} for i in items]},
               message="馆藏副本已添加")
 
@@ -217,10 +215,10 @@ def add_items(
 @router.post("/api/admin/items/{item_id}/remove", response_model=APIResponse)
 def remove_item(
     item_id: int,
-    db: Session = Depends(get_db),
+    service: CatalogService = Depends(get_catalog_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
-    CatalogService(db).remove_item(item_id)
+    service.remove_item(item_id)
     return ok(message="馆藏副本已删除")
 
 
@@ -242,11 +240,11 @@ class FineRuleRequest(BaseModel):
 
 @router.get("/api/admin/policies/borrow", response_model=APIResponse)
 def list_borrow_policies(
-    db: Session = Depends(get_db),
+    service: AdminService = Depends(get_admin_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
     """列出借阅规则当前配置。"""
-    rows = AdminService(db).list_borrow_policies()
+    rows = service.list_borrow_policies()
     return ok(
         data={
             "total": len(rows),
@@ -265,11 +263,11 @@ def list_borrow_policies(
 
 @router.get("/api/admin/policies/fine", response_model=APIResponse)
 def list_fine_rules(
-    db: Session = Depends(get_db),
+    service: AdminService = Depends(get_admin_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
     """列出罚款规则当前配置。"""
-    rows = AdminService(db).list_fine_rules()
+    rows = service.list_fine_rules()
     return ok(
         data={
             "total": len(rows),
@@ -288,10 +286,10 @@ def list_fine_rules(
 @router.put("/api/admin/policies/borrow", response_model=APIResponse)
 def upsert_borrow_policy(
     req: BorrowPolicyRequest,
-    db: Session = Depends(get_db),
+    service: AdminService = Depends(get_admin_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
-    policy = AdminService(db).upsert_borrow_policy(
+    policy = service.upsert_borrow_policy(
         req.reader_type, req.item_type, req.max_borrow_count, req.borrow_days
     )
     return ok(data={"reader_type": str(policy.reader_type),
@@ -304,10 +302,10 @@ def upsert_borrow_policy(
 @router.put("/api/admin/policies/fine", response_model=APIResponse)
 def upsert_fine_rule(
     req: FineRuleRequest,
-    db: Session = Depends(get_db),
+    service: AdminService = Depends(get_admin_service),
     account: Account = Depends(_admin_only),
 ) -> APIResponse:
-    rule = AdminService(db).upsert_fine_rule(
+    rule = service.upsert_fine_rule(
         req.item_category, req.grace_days, req.amount_per_day
     )
     return ok(data={"item_category": rule.item_category,

@@ -14,12 +14,13 @@ except Exception:
     pass
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.core.config import API_PORT
+from app.core.config import API_PORT, CORS_ALLOW_ORIGINS, RESET_DB_ON_START
 from app.core.exceptions import AppError
 from app.core.response import envelope
-from app.infrastructure.db.seed import init_database
+from app.infrastructure.db.seed import ensure_database, init_database
 from app.presentation.routers.admin_router import router as admin_router
 from app.presentation.routers.auth_router import router as auth_router
 from app.presentation.routers.catalog_router import router as catalog_router
@@ -29,6 +30,15 @@ from app.presentation.routers.review_router import router as review_router
 from app.presentation.routers.system_router import router as system_router
 
 app = FastAPI(title="图书管理系统 - 原子能力API", version="2.0.0")
+
+# 允许前端开发服务器跨域调用（来源清单见 app/core/config.py，可用 CORS_ALLOW_ORIGINS 覆盖）
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ALLOW_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(system_router)
 app.include_router(auth_router)
@@ -61,6 +71,10 @@ if __name__ == "__main__":
     print("=" * 50)
     print("  图书管理系统 - 原子能力API服务")
     print("=" * 50)
-    print("\n[init] 正在初始化数据库...")
-    init_database()
+    if RESET_DB_ON_START:
+        print("\n[init] RESET_DB_ON_START=1：正在删除并重建数据库...")
+        init_database(drop_existing=True)
+    else:
+        print("\n[init] 正在检查数据库（幂等初始化，不删除已有数据）...")
+        ensure_database()
     start_server()

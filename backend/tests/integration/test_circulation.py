@@ -346,7 +346,7 @@ class TestLoanRecords:
 
 
 class TestReturnRequestAudit:
-    """BR-020：读者发起归还申请、图书管理员审核（TC-083 ~ TC-094）。"""
+    """BR-020：读者发起归还申请、图书管理员审核（TC-083 ~ TC-095）。"""
 
     def _borrow(self, client, lib_token) -> int:
         return _borrow(client, lib_token).json()["data"]["loan_id"]

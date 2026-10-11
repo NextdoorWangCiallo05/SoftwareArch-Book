@@ -1,14 +1,17 @@
 """数据库初始化与种子数据。
 
-说明：本项目领域模型与旧版差异较大，初始化时**删除旧 library.db 后重建**（Q-I2 已确认）。
+说明：本项目领域模型与旧版差异较大，**首次初始化**会删除旧 library.db 后重建（Q-I2 已确认）。
+服务启动统一走 ensure_database()：仅当库缺失或为空时才建表+写入种子数据，不会清空已有业务数据；
+需要显式重置环境时，设置环境变量 RESET_DB_ON_START=1 或直接删除 backend/app/library.db。
 """
 
 from datetime import date, datetime, timedelta
 
+from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
-from app.core.config import DB_PATH, RESERVATION_VALID_DAYS
-from app.infrastructure.db.base import SessionLocal, create_tables, engine
+from app.core.config import DATABASE_URL, DB_PATH, RESERVATION_VALID_DAYS
+from app.infrastructure.db.base import SessionLocal, engine, recreate_database
 from app.infrastructure.models.orm import (
     AccountORM,
     BookTitleORM,
@@ -49,7 +52,7 @@ _FINE_RULES = [
     ("THESIS", 0, "2.00"),
 ]
 
-# ---------- 赔偿策略（BR-018a） ----------
+# ---------- 赔偿策略（BR-019） ----------
 
 _COMPENSATION_POLICIES = [
     ("BOOK", "2.00"),
@@ -210,9 +213,9 @@ def init_database(drop_existing: bool = True, verbose: bool = True) -> None:
     """初始化数据库。默认删除旧库后重建。"""
     if drop_existing:
         engine.dispose()
-        if DB_PATH.exists():
+        if DATABASE_URL.startswith("sqlite") and DB_PATH.exists():
             DB_PATH.unlink()
-        create_tables()
+        recreate_database()
 
     db: Session = SessionLocal()
     try:
@@ -230,3 +233,33 @@ def init_database(drop_existing: bool = True, verbose: bool = True) -> None:
         raise
     finally:
         db.close()
+
+
+def is_database_seeded() -> bool:
+    """判断数据库是否已建表且存在种子数据。"""
+    try:
+        if not inspect(engine).has_table(AccountORM.__tablename__):
+            return False
+    except Exception:
+        return False
+
+    db: Session = SessionLocal()
+    try:
+        return db.query(AccountORM.id).first() is not None
+    except Exception:
+        return False
+    finally:
+        db.close()
+
+
+def ensure_database(verbose: bool = True) -> None:
+    """幂等初始化：库缺失或为空时才建表并写入种子数据，否则直接跳过。
+
+    与 init_database(drop_existing=True) 的区别：不会删除已存在的库，
+    因此服务重启不会清空演示过程中产生的业务数据。
+    """
+    if is_database_seeded():
+        if verbose:
+            print("[init] 检测到已有数据库，跳过初始化（如需重置请设置 RESET_DB_ON_START=1 后重启）")
+        return
+    init_database(drop_existing=True, verbose=verbose)

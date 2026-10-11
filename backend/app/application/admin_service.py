@@ -5,31 +5,47 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import BusinessError, NotFoundError
-from app.domain.entities.identity import Account, BorrowCard, Librarian
+from app.domain.entities.identity import Account, BorrowCard, Librarian, PasswordHasher
 from app.domain.policies.borrow_policy import BorrowPolicy
 from app.domain.policies.fine_rule import FineRule
-from app.domain.value_objects.enums import ReaderStatus, Role
-from app.infrastructure.repositories.account_repository import SQLAlchemyAccountRepository
-from app.infrastructure.repositories.circulation_repository import SQLAlchemyLoanRepository
-from app.infrastructure.repositories.policy_repository import SQLAlchemyPolicyRepository
-from app.infrastructure.repositories.reader_repository import (
-    SQLAlchemyBorrowCardRepository,
-    SQLAlchemyLibrarianRepository,
-    SQLAlchemyReaderRepository,
+from app.domain.repositories.protocols import (
+    AccountRepository,
+    BorrowCardRepository,
+    LibrarianRepository,
+    LoanRepository,
+    PolicyRepository,
+    ReaderRepository,
 )
-from app.infrastructure.security.password_hasher import Pbkdf2PasswordHasher
+from app.domain.value_objects.enums import ReaderStatus, Role
 
 
 class AdminService:
-    def __init__(self, db: Session):
+    """依赖由组合根（app.presentation.dependencies）注入，仅依赖领域协议。"""
+
+    def __init__(
+        self,
+        db: Session,
+        accounts: AccountRepository,
+        readers: ReaderRepository,
+        librarians: LibrarianRepository,
+        cards: BorrowCardRepository,
+        loans: LoanRepository,
+        policies: PolicyRepository,
+        hasher: PasswordHasher,
+    ) -> None:
         self.db = db
-        self.accounts = SQLAlchemyAccountRepository(db)
-        self.readers = SQLAlchemyReaderRepository(db)
-        self.librarians = SQLAlchemyLibrarianRepository(db)
-        self.cards = SQLAlchemyBorrowCardRepository(db)
-        self.loans = SQLAlchemyLoanRepository(db)
-        self.policies = SQLAlchemyPolicyRepository(db)
-        self.hasher = Pbkdf2PasswordHasher()
+        self.accounts = accounts
+        self.readers = readers
+        self.librarians = librarians
+        self.cards = cards
+        self.loans = loans
+        self.policies = policies
+        self.hasher = hasher
+
+    def active_card_no(self, reader_id: int) -> str | None:
+        """读者当前有效借阅证号（无证时返回 None），供管理端列表展示。"""
+        card = self.cards.find_active_by_reader(reader_id)
+        return card.card_no if card else None
 
     # ---------- 借阅证（FR-004 / FR-005） ----------
 

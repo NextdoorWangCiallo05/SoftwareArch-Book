@@ -4,6 +4,7 @@
 业务规则委托给领域策略与领域服务，本层不硬编码任何规则数值。
 """
 
+import threading
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -12,29 +13,23 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import BusinessError, InfrastructureError, NotFoundError
 from app.domain.entities.circulation import FineRecord, Loan, LostItem
 from app.domain.policies.borrow_policy import BorrowPolicyTable
+from app.domain.repositories.protocols import (
+    BorrowCardRepository,
+    FineRepository,
+    ItemRepository,
+    LoanRepository,
+    LostRepository,
+    PolicyRepository,
+    ReaderRepository,
+    ReservationRepository,
+    TitleRepository,
+)
 from app.domain.services.circulation_policy_checker import (
     BorrowCheckContext,
     CirculationPolicyChecker,
 )
 from app.domain.services.fine_calculator import CompensationCalculator, FineCalculator
 from app.domain.value_objects.enums import ItemStatus, LoanStatus
-from app.infrastructure.repositories.catalog_repository import (
-    SQLAlchemyItemRepository,
-    SQLAlchemyTitleRepository,
-)
-from app.infrastructure.repositories.circulation_repository import (
-    SQLAlchemyFineRepository,
-    SQLAlchemyLoanRepository,
-    SQLAlchemyLostRepository,
-)
-from app.infrastructure.repositories.policy_repository import SQLAlchemyPolicyRepository
-from app.infrastructure.repositories.reader_repository import (
-    SQLAlchemyBorrowCardRepository,
-    SQLAlchemyReaderRepository,
-)
-from app.infrastructure.repositories.reservation_repository import (
-    SQLAlchemyReservationRepository,
-)
 from app.schemas.circulation import (
     BorrowResultDTO,
     FineDTO,
@@ -46,27 +41,60 @@ from app.schemas.circulation import (
 )
 
 
+# 单进程内串行化"配额校验 + 写入"，避免并发下同一读者超借；
+# 多 worker 部署应改用数据库行锁或唯一约束（见 specs/17-risk-register.md）。
+_BORROW_LOCK = threading.Lock()
+
+
 class CirculationService:
-    def __init__(self, db: Session):
+    """依赖由组合根（app.presentation.dependencies）注入，仅依赖领域协议。"""
+
+    def __init__(
+        self,
+        db: Session,
+        cards: BorrowCardRepository,
+        readers: ReaderRepository,
+        items: ItemRepository,
+        titles: TitleRepository,
+        loans: LoanRepository,
+        fines: FineRepository,
+        losts: LostRepository,
+        policies: PolicyRepository,
+        reservations: ReservationRepository,
+    ) -> None:
         self.db = db
-        self.cards = SQLAlchemyBorrowCardRepository(db)
-        self.readers = SQLAlchemyReaderRepository(db)
-        self.items = SQLAlchemyItemRepository(db)
-        self.titles = SQLAlchemyTitleRepository(db)
-        self.loans = SQLAlchemyLoanRepository(db)
-        self.fines = SQLAlchemyFineRepository(db)
-        self.losts = SQLAlchemyLostRepository(db)
-        self.policies = SQLAlchemyPolicyRepository(db)
-        self.reservations = SQLAlchemyReservationRepository(db)
+        self.cards = cards
+        self.readers = readers
+        self.items = items
+        self.titles = titles
+        self.loans = loans
+        self.fines = fines
+        self.losts = losts
+        self.policies = policies
+        self.reservations = reservations
         self.checker = CirculationPolicyChecker()
         self.fine_calc = FineCalculator()
         self.comp_calc = CompensationCalculator()
 
+    # ---------- 供表现层使用的读取方法（避免表现层穿透访问仓储） ----------
+
+    def get_loan(self, loan_id: int) -> Loan | None:
+        """按 ID 查询借阅记录（不存在返回 None）。"""
+        return self.loans.get(loan_id)
+
+    def reader_id_of_account(self, account_id: int) -> int | None:
+        """当前账户对应的读者 ID（无读者档案时返回 None）。"""
+        reader = self.readers.find_by_account_id(account_id)
+        return reader.id if reader else None
+
     # ---------- 借书（UC-009） ----------
 
     def borrow(self, card_no: str, barcode: str, today: date | None = None) -> BorrowResultDTO:
-        today = today or date.today()
+        """借书（UC-009）。进程内串行化校验与写入，避免并发超借。"""
+        with _BORROW_LOCK:
+            return self._borrow(card_no, barcode, today or date.today())
 
+    def _borrow(self, card_no: str, barcode: str, today: date) -> BorrowResultDTO:
         card = self.cards.find_by_no(card_no)
         if card is None:
             raise NotFoundError("借阅证不存在")

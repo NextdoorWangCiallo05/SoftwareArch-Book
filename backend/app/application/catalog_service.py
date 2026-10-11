@@ -6,21 +6,29 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import BusinessError, NotFoundError
 from app.domain.entities.catalog import BookTitle, LibraryItem
-from app.domain.value_objects.enums import ItemStatus, ItemType, ReviewStatus
-from app.infrastructure.repositories.catalog_repository import (
-    SQLAlchemyItemRepository,
-    SQLAlchemyTitleRepository,
+from app.domain.repositories.protocols import (
+    ItemRepository,
+    ReviewRepository,
+    TitleRepository,
 )
-from app.infrastructure.repositories.review_repository import SQLAlchemyReviewRepository
+from app.domain.value_objects.enums import ItemStatus, ItemType, ReviewStatus
 from app.schemas.catalog import BookDTO, BookDetailDTO, ItemDTO
 
 
 class CatalogService:
-    def __init__(self, db: Session):
+    """依赖由组合根（app.presentation.dependencies）注入，仅依赖领域协议。"""
+
+    def __init__(
+        self,
+        db: Session,
+        titles: TitleRepository,
+        items: ItemRepository,
+        reviews: ReviewRepository,
+    ) -> None:
         self.db = db
-        self.titles = SQLAlchemyTitleRepository(db)
-        self.items = SQLAlchemyItemRepository(db)
-        self.reviews = SQLAlchemyReviewRepository(db)
+        self.titles = titles
+        self.items = items
+        self.reviews = reviews
 
     # ---------- 检索 ----------
 

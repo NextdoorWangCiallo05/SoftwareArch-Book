@@ -10,28 +10,35 @@ from sqlalchemy.orm import Session
 
 from app.core.config import TOKEN_TTL_HOURS
 from app.core.exceptions import BusinessError, PermissionDeniedError
-from app.domain.entities.identity import Account, Reader
+from app.domain.entities.identity import Account, PasswordHasher, Reader
+from app.domain.repositories.protocols import (
+    AccountRepository,
+    BorrowCardRepository,
+    ReaderRepository,
+    TokenRepository,
+)
 from app.domain.value_objects.enums import ReaderStatus, Role
-from app.infrastructure.repositories.account_repository import (
-    SQLAlchemyAccountRepository,
-    SQLAlchemyTokenRepository,
-)
-from app.infrastructure.repositories.reader_repository import (
-    SQLAlchemyBorrowCardRepository,
-    SQLAlchemyReaderRepository,
-)
-from app.infrastructure.security.password_hasher import Pbkdf2PasswordHasher
 from app.schemas.auth import LoginDTO, ProfileDTO, ReaderDTO
 
 
 class AuthService:
-    def __init__(self, db: Session):
+    """依赖由组合根（app.presentation.dependencies）注入，仅依赖领域协议。"""
+
+    def __init__(
+        self,
+        db: Session,
+        accounts: AccountRepository,
+        readers: ReaderRepository,
+        cards: BorrowCardRepository,
+        tokens: TokenRepository,
+        hasher: PasswordHasher,
+    ) -> None:
         self.db = db
-        self.accounts = SQLAlchemyAccountRepository(db)
-        self.readers = SQLAlchemyReaderRepository(db)
-        self.cards = SQLAlchemyBorrowCardRepository(db)
-        self.tokens = SQLAlchemyTokenRepository(db)
-        self.hasher = Pbkdf2PasswordHasher()
+        self.accounts = accounts
+        self.readers = readers
+        self.cards = cards
+        self.tokens = tokens
+        self.hasher = hasher
 
     def register(self, username: str, password: str, name: str,
                  reader_type, email: str | None = None) -> ReaderDTO:

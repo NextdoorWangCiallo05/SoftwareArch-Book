@@ -129,7 +129,7 @@ class FineRecord:
 
 @dataclass
 class LostItem:
-    """丢失与赔偿记录（BR-018a）。"""
+    """丢失与赔偿记录（BR-019）。"""
 
     id: Optional[int] = None
     loan_id: Optional[int] = None

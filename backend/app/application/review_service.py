@@ -4,18 +4,33 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError, PermissionDeniedError
 from app.domain.entities.review import BookReview
+from app.domain.repositories.protocols import (
+    ReaderRepository,
+    ReviewRepository,
+    TitleRepository,
+)
 from app.domain.value_objects.enums import ReviewStatus
-from app.infrastructure.repositories.catalog_repository import SQLAlchemyTitleRepository
-from app.infrastructure.repositories.reader_repository import SQLAlchemyReaderRepository
-from app.infrastructure.repositories.review_repository import SQLAlchemyReviewRepository
 
 
 class ReviewService:
-    def __init__(self, db: Session):
+    """依赖由组合根（app.presentation.dependencies）注入，仅依赖领域协议。"""
+
+    def __init__(
+        self,
+        db: Session,
+        titles: TitleRepository,
+        readers: ReaderRepository,
+        reviews: ReviewRepository,
+    ) -> None:
         self.db = db
-        self.titles = SQLAlchemyTitleRepository(db)
-        self.readers = SQLAlchemyReaderRepository(db)
-        self.reviews = SQLAlchemyReviewRepository(db)
+        self.titles = titles
+        self.readers = readers
+        self.reviews = reviews
+
+    def reader_id_of_account(self, account_id: int) -> int | None:
+        """当前账户对应的读者 ID（无读者档案时返回 None）。"""
+        reader = self.readers.find_by_account_id(account_id)
+        return reader.id if reader else None
 
     def submit(self, reader_id: int, title_id: int, rating: int, comment: str | None) -> dict:
         title = self.titles.get(title_id)

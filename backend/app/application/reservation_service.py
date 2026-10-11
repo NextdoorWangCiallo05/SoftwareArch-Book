@@ -4,27 +4,52 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+import threading
+
 from app.core.config import RESERVATION_VALID_DAYS
 from app.core.exceptions import BusinessError, NotFoundError, PermissionDeniedError
 from app.domain.entities.circulation import Reservation
-from app.domain.value_objects.enums import ReservationStatus
-from app.infrastructure.repositories.catalog_repository import SQLAlchemyTitleRepository
-from app.infrastructure.repositories.circulation_repository import SQLAlchemyLoanRepository
-from app.infrastructure.repositories.reservation_repository import (
-    SQLAlchemyReservationRepository,
+from app.domain.repositories.protocols import (
+    LoanRepository,
+    ReaderRepository,
+    ReservationRepository,
+    TitleRepository,
 )
+from app.domain.value_objects.enums import ReservationStatus
+
+# 单进程内串行化"位次计算 + 写入"，避免并发预约产生相同位次；
+# 多 worker 部署应改用数据库唯一索引（见 specs/17-risk-register.md）。
+_RESERVE_LOCK = threading.Lock()
 
 
 class ReservationService:
-    def __init__(self, db: Session):
+    """依赖由组合根（app.presentation.dependencies）注入，仅依赖领域协议。"""
+
+    def __init__(
+        self,
+        db: Session,
+        titles: TitleRepository,
+        loans: LoanRepository,
+        reservations: ReservationRepository,
+        readers: ReaderRepository,
+    ) -> None:
         self.db = db
-        self.titles = SQLAlchemyTitleRepository(db)
-        self.loans = SQLAlchemyLoanRepository(db)
-        self.reservations = SQLAlchemyReservationRepository(db)
+        self.titles = titles
+        self.loans = loans
+        self.reservations = reservations
+        self.readers = readers
+
+    def reader_id_of_account(self, account_id: int) -> int | None:
+        """当前账户对应的读者 ID（无读者档案时返回 None）。"""
+        reader = self.readers.find_by_account_id(account_id)
+        return reader.id if reader else None
 
     def create(self, reader_id: int, title_id: int, today: date | None = None) -> dict:
-        today = today or date.today()
+        """预约（UC-013）。进程内串行化，避免并发下位次重复。"""
+        with _RESERVE_LOCK:
+            return self._create(reader_id, title_id, today or date.today())
 
+    def _create(self, reader_id: int, title_id: int, today: date) -> dict:
         title = self.titles.get(title_id)
         if title is None:
             raise NotFoundError("图书不存在")
