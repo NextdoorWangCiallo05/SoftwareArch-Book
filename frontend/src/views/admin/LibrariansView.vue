@@ -3,14 +3,18 @@ import { onMounted, reactive, ref } from 'vue'
 
 import { adminApi } from '../../api'
 import AppModal from '../../components/AppModal.vue'
+import PaginationBar from '../../components/PaginationBar.vue'
 import StateBlock from '../../components/StateBlock.vue'
 import { useToast } from '../../composables/useToast'
+
+const PAGE_SIZE = 20
 
 const toast = useToast()
 
 const librarians = ref([])
 const total = ref(0)
-const loading = ref(false)
+const page = ref(1)
+const loading = ref(true)
 const busyId = ref(null)
 
 const createForm = reactive({ username: '', password: '', name: '', employee_no: '' })
@@ -22,15 +26,24 @@ const editForm = reactive({ name: '', employee_no: '' })
 async function load() {
   loading.value = true
   try {
-    const data = await adminApi.listLibrarians({ page: 1, page_size: 100 })
+    const data = await adminApi.listLibrarians({ page: page.value, page_size: PAGE_SIZE })
     librarians.value = data.librarians || []
     total.value = data.total || 0
+    if (librarians.value.length === 0 && page.value > 1) {
+      page.value -= 1
+      return await load()
+    }
   } catch (err) {
     toast.error(err.message)
     librarians.value = []
   } finally {
     loading.value = false
   }
+}
+
+function onPageChange(next) {
+  page.value = next
+  load()
 }
 
 async function onCreate() {
@@ -174,6 +187,13 @@ onMounted(load)
             </tbody>
           </table>
         </div>
+        <PaginationBar
+          :page="page"
+          :page-size="PAGE_SIZE"
+          :total="total"
+          unit="个"
+          @change="onPageChange"
+        />
       </StateBlock>
     </div>
 

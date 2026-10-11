@@ -8,7 +8,7 @@ import { useToast } from '../../composables/useToast'
 const toast = useToast()
 
 const reviews = ref([])
-const loading = ref(false)
+const loading = ref(true)
 const busyId = ref(null)
 
 function starsText(value) {

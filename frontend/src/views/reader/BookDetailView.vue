@@ -14,6 +14,7 @@ const auth = useAuth()
 const toast = useToast()
 
 const titleId = Number(route.params.titleId)
+const validTitleId = Number.isInteger(titleId) && titleId > 0
 
 const detail = ref(null)
 const reviews = ref([])
@@ -25,9 +26,11 @@ const submittingReview = ref(false)
 const reviewForm = reactive({ rating: 5, comment: '' })
 const hoverRating = ref(0)
 
+const items = computed(() => detail.value?.items || [])
 const availableCount = computed(
-  () => detail.value?.items?.filter((i) => i.status === 'AVAILABLE').length || 0,
+  () => items.value.filter((i) => i.status === 'AVAILABLE').length,
 )
+const reviewCount = computed(() => detail.value?.review_count ?? 0)
 
 async function loadDetail() {
   loading.value = true
@@ -93,6 +96,11 @@ function starsText(value) {
 }
 
 onMounted(async () => {
+  if (!validTitleId) {
+    loading.value = false
+    toast.error('无效的图书编号')
+    return
+  }
   await loadDetail()
   await loadReviews()
 })
@@ -112,7 +120,7 @@ onMounted(async () => {
           <div style="text-align: right">
             <div class="stars" style="font-size: 18px">{{ starsText(averageRating) }}</div>
             <div class="book-meta">
-              {{ averageRating || 0 }} 分 · {{ detail.review_count }} 条已公开评论
+              {{ averageRating || 0 }} 分 · {{ reviewCount }} 条已公开评论
             </div>
           </div>
         </div>
@@ -123,7 +131,7 @@ onMounted(async () => {
             <div class="stat-label">可借副本</div>
           </div>
           <div class="stat">
-            <div class="stat-value">{{ detail.items.length }}</div>
+            <div class="stat-value">{{ items.length }}</div>
             <div class="stat-label">馆藏总量</div>
           </div>
           <div class="stat">
@@ -165,7 +173,7 @@ onMounted(async () => {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="item in detail.items" :key="item.item_id">
+              <tr v-for="item in items" :key="item.item_id">
                 <td class="mono">{{ item.barcode }}</td>
                 <td>
                   <span class="badge" :class="`badge-${toneOf(ITEM_STATUS, item.status)}`">
@@ -174,7 +182,7 @@ onMounted(async () => {
                 </td>
                 <td>{{ item.location || '-' }}</td>
               </tr>
-              <tr v-if="detail.items.length === 0">
+              <tr v-if="items.length === 0">
                 <td colspan="3" style="text-align: center; color: var(--text-faint)">
                   暂无馆藏副本
                 </td>

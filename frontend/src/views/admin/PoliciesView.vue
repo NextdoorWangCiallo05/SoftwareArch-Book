@@ -17,7 +17,7 @@ const toast = useToast()
 
 const policies = ref([])
 const fineRules = ref([])
-const loading = ref(false)
+const loading = ref(true)
 const saving = ref(false)
 
 const policyForm = reactive({

@@ -18,7 +18,7 @@ const filters = reactive({ keyword: '', author: '', category: '', item_type: '' 
 const page = ref(1)
 const books = ref([])
 const total = ref(0)
-const loading = ref(false)
+const loading = ref(true)
 const searched = ref(false)
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)))

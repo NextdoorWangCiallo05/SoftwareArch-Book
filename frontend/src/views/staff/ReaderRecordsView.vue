@@ -17,6 +17,7 @@ const searched = ref(false)
 const STATUS_FILTERS = [
   { value: '', label: '全部' },
   { value: 'BORROWED', label: '借阅中' },
+  { value: 'RETURN_REQUESTED', label: '待审核归还' },
   { value: 'OVERDUE', label: '逾期' },
   { value: 'RETURNED', label: '已归还' },
 ]
@@ -58,7 +59,12 @@ async function load() {
         </div>
         <div class="field">
           <label for="status">状态</label>
-          <select id="status" v-model="statusFilter" class="select">
+          <select
+            id="status"
+            v-model="statusFilter"
+            class="select"
+            @change="searched && load()"
+          >
             <option v-for="f in STATUS_FILTERS" :key="f.value" :value="f.value">
               {{ f.label }}
             </option>
@@ -107,7 +113,7 @@ async function load() {
                     {{ LOAN_STATUS[loan.status]?.label || loan.status }}
                   </span>
                 </td>
-                <td>{{ loan.renew_count }} 次</td>
+                <td>{{ loan.renew_count ?? 0 }} 次</td>
               </tr>
             </tbody>
           </table>

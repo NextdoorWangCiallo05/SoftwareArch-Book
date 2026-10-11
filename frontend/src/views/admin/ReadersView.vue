@@ -3,16 +3,20 @@ import { onMounted, reactive, ref } from 'vue'
 
 import { adminApi } from '../../api'
 import AppModal from '../../components/AppModal.vue'
+import PaginationBar from '../../components/PaginationBar.vue'
 import StateBlock from '../../components/StateBlock.vue'
 import { READER_STATUS, READER_TYPES, readerTypeLabel, toneOf } from '../../constants'
 import { useToast } from '../../composables/useToast'
+
+const PAGE_SIZE = 20
 
 const toast = useToast()
 
 const filters = reactive({ name: '', reader_type: '' })
 const readers = ref([])
 const total = ref(0)
-const loading = ref(false)
+const page = ref(1)
+const loading = ref(true)
 const busyId = ref(null)
 
 const editing = ref(null)
@@ -24,17 +28,31 @@ async function load() {
     const data = await adminApi.listReaders({
       name: filters.name.trim() || undefined,
       reader_type: filters.reader_type || undefined,
-      page: 1,
-      page_size: 100,
+      page: page.value,
+      page_size: PAGE_SIZE,
     })
     readers.value = data.readers || []
     total.value = data.total || 0
+    if (readers.value.length === 0 && page.value > 1) {
+      page.value -= 1
+      return await load()
+    }
   } catch (err) {
     toast.error(err.message)
     readers.value = []
   } finally {
     loading.value = false
   }
+}
+
+function onSearch() {
+  page.value = 1
+  load()
+}
+
+function onPageChange(next) {
+  page.value = next
+  load()
 }
 
 function openEdit(reader) {
@@ -107,7 +125,7 @@ onMounted(load)
         </div>
       </div>
 
-      <form class="inline-form" @submit.prevent="load">
+      <form class="inline-form" @submit.prevent="onSearch">
         <div class="field">
           <label for="r-name">姓名</label>
           <input id="r-name" v-model="filters.name" class="input" placeholder="按姓名模糊查询" />
@@ -183,6 +201,13 @@ onMounted(load)
             </tbody>
           </table>
         </div>
+        <PaginationBar
+          :page="page"
+          :page-size="PAGE_SIZE"
+          :total="total"
+          unit="位"
+          @change="onPageChange"
+        />
       </StateBlock>
     </div>
 

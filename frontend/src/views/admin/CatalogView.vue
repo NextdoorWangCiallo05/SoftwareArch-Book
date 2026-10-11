@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 
 import { adminApi, catalogApi } from '../../api'
 import AppModal from '../../components/AppModal.vue'
+import PaginationBar from '../../components/PaginationBar.vue'
 import StateBlock from '../../components/StateBlock.vue'
 import {
   FINE_CATEGORIES,
@@ -13,12 +14,15 @@ import {
 } from '../../constants'
 import { useToast } from '../../composables/useToast'
 
+const PAGE_SIZE = 20
+
 const toast = useToast()
 
 const filters = reactive({ keyword: '', author: '', category: '', item_type: '' })
 const books = ref([])
 const total = ref(0)
-const loading = ref(false)
+const page = ref(1)
+const loading = ref(true)
 const busyId = ref(null)
 
 /* ---- 新增图书 ---- */
@@ -60,17 +64,31 @@ async function load() {
       author: filters.author.trim() || undefined,
       category: filters.category.trim() || undefined,
       item_type: filters.item_type || undefined,
-      page: 1,
-      page_size: 100,
+      page: page.value,
+      page_size: PAGE_SIZE,
     })
     books.value = data.books || []
     total.value = data.total || 0
+    if (books.value.length === 0 && page.value > 1) {
+      page.value -= 1
+      return await load()
+    }
   } catch (err) {
     toast.error(err.message)
     books.value = []
   } finally {
     loading.value = false
   }
+}
+
+function onSearch() {
+  page.value = 1
+  load()
+}
+
+function onPageChange(next) {
+  page.value = next
+  load()
 }
 
 async function onCreate() {
@@ -269,7 +287,7 @@ onMounted(load)
         </button>
       </form>
 
-      <form class="inline-form" style="margin-top: 14px" @submit.prevent="load">
+      <form class="inline-form" style="margin-top: 14px" @submit.prevent="onSearch">
         <div class="field">
           <label for="f-kw">书名关键词</label>
           <input id="f-kw" v-model="filters.keyword" class="input" />
@@ -342,6 +360,13 @@ onMounted(load)
             </tbody>
           </table>
         </div>
+        <PaginationBar
+          :page="page"
+          :page-size="PAGE_SIZE"
+          :total="total"
+          unit="本"
+          @change="onPageChange"
+        />
       </StateBlock>
     </div>
 

@@ -12,7 +12,7 @@ const tab = ref('fines') // fines | losts | report
 const onlyUnpaid = ref(true)
 const fines = ref([])
 const losts = ref([])
-const loading = ref(false)
+const loading = ref(true)
 const actingId = ref(null)
 
 const reportForm = reactive({ barcode: '' })

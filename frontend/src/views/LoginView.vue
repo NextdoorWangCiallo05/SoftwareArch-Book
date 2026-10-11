@@ -24,6 +24,10 @@ const registerForm = reactive({
   email: '',
 })
 
+// ⚠️ 演示账号与后端种子数据（backend/app/infrastructure/db/seed.py）一一对应，
+// 仅用于本地演示与课程验收；正式部署请删除本区块，或构建时设置 VITE_SHOW_DEMO_ACCOUNTS=false 隐藏。
+const SHOW_DEMO_ACCOUNTS = import.meta.env.VITE_SHOW_DEMO_ACCOUNTS !== 'false'
+
 const DEMO_ACCOUNTS = [
   { label: '读者 zhangsan', username: 'zhangsan', password: '123456' },
   { label: '图书管理员 lib01', username: 'lib01', password: '123456' },
@@ -162,8 +166,8 @@ async function onRegister() {
         </a>
       </div>
 
-      <div v-if="mode === 'login'" class="demo-accounts">
-        <p>演示账号（点击自动填充）</p>
+      <div v-if="mode === 'login' && SHOW_DEMO_ACCOUNTS" class="demo-accounts">
+        <p>演示账号（点击自动填充；仅本地演示环境提供）</p>
         <div class="demo-list">
           <button
             v-for="acc in DEMO_ACCOUNTS"
