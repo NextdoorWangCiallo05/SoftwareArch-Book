@@ -2,7 +2,7 @@
 name: return-book
 description: 归还图书技能。由 circulation-agent 在 orchestrator-agent 委派下调用，提供两段式还书（读者申请 + 馆员审核）、现场办理与超期罚款的接口契约。
 metadata:
-  version: "2.1"
+  version: "2.2"
   api-base: "http://localhost:8001"
 ---
 
@@ -46,6 +46,7 @@ metadata:
 
 第1步：读者登录（参考 `user-manage` skill），`GET /api/auth/me` 取 `reader_id`；
 第2步：`GET /api/circulation/records/{reader_id}?status=BORROWED` 取 `loan_id`（同名多本按 `barcode`/`borrow_date` 消歧，不确定则让用户确认）；
+　　　　注意：若读者此前已对该记录提交过申请，状态会变为 `RETURN_REQUESTED`，此时改用 `status=RETURN_REQUESTED`（或不带 `status`）查询，**不要**误判为"没有在借记录"；
 第3步：`POST /api/circulation/return-request {"loan_id": ..}`；
 第4步：告知用户"归还申请已提交，请将图书交至馆台等待审核；审核通过前图书仍计入在借且不可续借"。
 

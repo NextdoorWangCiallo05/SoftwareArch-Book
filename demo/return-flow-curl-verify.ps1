@@ -1,7 +1,7 @@
 ﻿<#
   实验二 · 两段式还书（BR-020）接口 curl 验证脚本
   ------------------------------------------------------------------
-  自包含流程：启动后端 -> 登录取 token -> 验证归还申请/待审清单/驳回/通过
+  自包含流程：重置种子库并启动后端 -> 登录取 token -> 验证归还申请/待审清单/驳回/通过
               -> 生成 markdown 测试记录 -> 停止后端
 
   产出：demo/return-flow-curl-test.md
@@ -24,6 +24,8 @@ if ($existing) {
     }
     Start-Sleep -Seconds 1
 }
+# 让本次启动重置种子库，保证断言从干净数据开始（重启默认不清库）
+$env:RESET_DB_ON_START = "1"
 $proc = Start-Process -FilePath "python" -ArgumentList "main.py" `
     -WorkingDirectory $backendDir -RedirectStandardOutput $log -RedirectStandardError $logErr `
     -PassThru -WindowStyle Hidden

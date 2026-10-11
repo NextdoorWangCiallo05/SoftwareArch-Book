@@ -197,8 +197,9 @@ POST /api/circulation/renew
 ### 3.4 查询借阅记录
 
 ```text
-GET /api/circulation/records/{reader_id}?status=BORROWED|RETURNED|OVERDUE
-权限：读者（仅本人）或 管理员（任意）
+GET /api/circulation/records/{reader_id}?status=BORROWED|RETURN_REQUESTED|RETURNED|OVERDUE
+权限：读者（仅本人）或 管理员（任意）；status 精确匹配，缺省返回全部
+注：RETURN_REQUESTED（已提交归还申请、待馆员审核）仍计入在借数量与超期检查
 响应：200 data: { "total": 2, "records": [
   { "loan_id": 1, "title": "三体", "barcode": "ITEM2026000001",
     "borrow_date": "2026-09-13", "due_date": "2026-10-13",
@@ -236,6 +237,23 @@ POST /api/circulation/lost/{lost_id}/pay
 失败：403 非管理员；404 赔偿记录不存在；400 该赔偿已缴清
 ```
 
+### 3.8 罚款与赔偿查询（馆员缴费台）
+
+```text
+GET /api/circulation/fines?reader_id=&paid=
+权限：管理员
+响应：200 data: { "total": 1, "records": [ { "fine_id": 1, "loan_id": 1, "reader_id": 1,
+                 "reader_name": "张三", "title": "三体", "amount": 2.00, "paid": false } ] }
+说明：reader_id / paid 均可选，缺省返回全部；paid=false 即待缴清单（缴费需 fine_id）
+
+GET /api/circulation/lost?reader_id=&paid=
+权限：管理员
+响应：200 data: { "total": 1, "records": [ { "lost_id": 1, "loan_id": 1, "item_id": 1,
+                 "reader_id": 1, "reader_name": "张三", "title": "三体",
+                 "amount": 79.60, "lost_date": "2026-09-13", "paid": false } ] }
+说明：reader_id / paid 均可选，缺省返回全部；paid=false 即待缴清单（缴费需 lost_id）
+```
+
 ---
 
 ## 4. 预约
@@ -258,6 +276,18 @@ POST /api/reservations/{reservation_id}/cancel
 权限：读者（仅本人）
 响应：200 data: { "reservation_id": 1, "status": "CANCELLED" }
 失败：403 非本人；404 预约不存在；400 该预约已取消或已失效
+```
+
+### 4.3 查询预约
+
+```text
+GET /api/reservations?reader_id=
+权限：读者（仅本人，无需传 reader_id）；图书管理员 / 系统管理员（须显式传 reader_id）
+响应：200 data: { "total": 1, "reservations": [ { "reservation_id": 1, "title_id": 1,
+                 "title": "三体", "queue_position": 1, "status": "ACTIVE",
+                 "created_at": "2026-09-13 10:00:00", "expires_at": "2026-09-20" } ] }
+失败：403 权限不足；400 管理员未指定 reader_id
+说明：queue_position 为创建时计算并持久化的位次快照，取消 / 过期不重排
 ```
 
 ---
@@ -297,6 +327,17 @@ POST /api/reviews/{review_id}/moderate
 失败：403 非系统管理员；404 评论不存在；400 该评论已审核
 ```
 
+### 5.4 待审评论清单
+
+```text
+GET /api/reviews/pending
+权限：系统管理员
+响应：200 data: { "total": 1, "reviews": [ { "review_id": 1, "title_id": 1, "title": "三体",
+                 "reader_id": 1, "reader_name": "张三", "rating": 5, "comment": "太好看了",
+                 "status": "PENDING", "created_at": "2026-09-13" } ] }
+说明：仅返回 PENDING；审核台先取 review_id 才能调用 5.3 审核
+```
+
 ---
 
 ## 6. 系统管理
@@ -319,6 +360,8 @@ POST /api/reviews/{review_id}/moderate
 | 6.14 | `GET /api/admin/librarians` | 系统管理员 | query：`page`、`page_size` | `total`、`librarians:[{librarian_id,name,employee_no}]` | 400 参数非法 |
 | 6.15 | `PUT /api/admin/librarians/{librarian_id}` | 系统管理员 | `{name?, employee_no?}` | `librarian_id`,`name`,`employee_no` | 404 管理员不存在 |
 | 6.16 | `PUT /api/admin/titles/{title_id}` | 系统管理员 | `{title?, author?, publisher?, published_year?, category?, price?}` | `title_id`,`title`,`price` | 404 标题不存在；ISBN 不可修改 |
+| 6.17 | `GET /api/admin/policies/borrow` | 系统管理员 | — | `total`、`policies:[{reader_type,item_type,max_borrow_count,borrow_days}]` | 403 非系统管理员 |
+| 6.18 | `GET /api/admin/policies/fine` | 系统管理员 | — | `total`、`rules:[{item_category,grace_days,amount_per_day}]` | 403 非系统管理员 |
 
 > 6.11 的 `card_no`：该读者的**有效**借阅证号，无有效证时为 `null`。
 > 供图书管理员在读者不到场时代办借书取用（读者在场时也可由 1.3 `GET /api/auth/me` 获得）。
@@ -330,7 +373,9 @@ POST /api/reviews/{review_id}/moderate
 ```text
 GET /api/health
 权限：公开
-响应：{ "status": "ok", "timestamp": "2026-09-13T10:00:00" }
+响应：200 { "code": 200, "message": "ok",
+          "data": { "status": "ok", "timestamp": "2026-09-13T10:00:00" } }
+说明：与其他接口一致采用统一响应信封
 ```
 
 ---
@@ -352,6 +397,11 @@ Agent 无法自行解析的缺口，做了一次**向后兼容的只读补齐**�
 | 6.11 `GET /api/admin/readers` 响应补 `card_no` | 读者列表每位读者附有效借阅证号 | 借书必需 `card_no`，此前无任何只读接口可取，Agent 只能猜 | 仅新增响应字段 |
 | 补充 6.11–6.16 | 读者管理、管理员列表与修改、图书信息修改 6 个接口此前未入文档 | 实现时按 FR-028～FR-030 补齐，文档漏记 | 文档补齐，无代码变更 |
 | 1.2 登录补充说明 | 明确 `user_id` 与 `reader_id` 的区别 | 同一原因，避免契约被误用 | 文档说明 |
+| 补充 3.8 / 4.3 / 5.4 / 6.17–6.18 | 罚款与赔偿查询、预约查询、待审评论清单、借阅 / 罚款规则查询共 6 个接口此前未入文档 | 实现时按 UC-016 / UC-022、UC-013、UC-021、UC-019 / UC-020 补齐，文档漏记 | 文档补齐，无代码变更 |
+| 3.4 记录查询补 `RETURN_REQUESTED` | status 枚举与实现对齐（BR-020） | 两段式还书新增状态后遗漏 | 文档修正 |
+| 7 健康检查改用统一信封 | `/api/health` 与其他接口一致返回 `{code, message, data}` | 实现已统一，文档未同步 | 实现与文档对齐 |
 
 上述修订已同步到 `.codebuddy` 下 2 个 agent 与 6 个 skill（版本号 +0.1），
 并补充回归用例 `TC-A02`、`TC-A03`（见 `15-test-plan.md`）。
+本轮新增的 `RETURN_REQUESTED` 枚举与"申请期间占配额 / 不可续借"语义同样已同步：
+`circulation-agent` v2.3、`return-book` v2.2、`renew-book` v1.2。

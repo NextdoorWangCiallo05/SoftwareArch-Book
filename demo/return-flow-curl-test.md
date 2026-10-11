@@ -1,6 +1,6 @@
 # 两段式还书接口 curl 测试记录
 
-> 生成时间：2026-10-08 22:47:00
+> 生成时间：2026-10-11 12:17:38
 > 后端地址：http://127.0.0.1:8001（端口 8001）
 > 测试覆盖：BR-020 两段式还书 —— 读者发起归还申请 + 图书管理员审核
 > 标记为 新接口 的为本次新增接口
@@ -16,7 +16,7 @@ curl.exe -s -X GET "http://127.0.0.1:8001/api/circulation/records/1?status=BORRO
 ```
 **响应：**
 ```json
-{"code":200,"message":"操作成功","data":{"total":1,"records":[{"loan_id":1,"title":"三体","barcode":"ITEM2026000001","borrow_date":"2026-10-08","due_date":"2026-11-07","return_date":null,"status":"BORROWED","is_overdue":false,"renew_count":0}]}}
+{"code":200,"message":"操作成功","data":{"total":1,"records":[{"loan_id":1,"title":"三体","barcode":"ITEM2026000001","borrow_date":"2026-10-11","due_date":"2026-11-10","return_date":null,"status":"BORROWED","is_overdue":false,"renew_count":0}]}}
 ```
 > 结构正确：code=200, message=操作成功
 
@@ -28,7 +28,7 @@ curl.exe -s -X POST "http://127.0.0.1:8001/api/circulation/return-request" -H "A
 ```
 **响应：**
 ```json
-{"code":200,"message":"归还申请已提交，等待馆员审核","data":{"loan_id":1,"reader_id":1,"reader_name":"张三","title":"三体","barcode":"ITEM2026000001","borrow_date":"2026-10-08","due_date":"2026-11-07","is_overdue":false,"renew_count":0,"status":"RETURN_REQUESTED"}}
+{"code":200,"message":"归还申请已提交，等待馆员审核","data":{"loan_id":1,"reader_id":1,"reader_name":"张三","title":"三体","barcode":"ITEM2026000001","borrow_date":"2026-10-11","due_date":"2026-11-10","is_overdue":false,"renew_count":0,"status":"RETURN_REQUESTED"}}
 ```
 > 结构正确：code=200, message=归还申请已提交，等待馆员审核
 
@@ -38,7 +38,7 @@ curl.exe -s -X GET "http://127.0.0.1:8001/api/circulation/return-requests" -H "A
 ```
 **响应：**
 ```json
-{"code":200,"message":"操作成功","data":{"total":1,"records":[{"loan_id":1,"reader_id":1,"reader_name":"张三","title":"三体","barcode":"ITEM2026000001","borrow_date":"2026-10-08","due_date":"2026-11-07","is_overdue":false,"renew_count":0,"status":"RETURN_REQUESTED"}]}}
+{"code":200,"message":"操作成功","data":{"total":1,"records":[{"loan_id":1,"reader_id":1,"reader_name":"张三","title":"三体","barcode":"ITEM2026000001","borrow_date":"2026-10-11","due_date":"2026-11-10","is_overdue":false,"renew_count":0,"status":"RETURN_REQUESTED"}]}}
 ```
 > 结构正确：code=200, message=操作成功
 
@@ -48,7 +48,7 @@ curl.exe -s -X GET "http://127.0.0.1:8001/api/circulation/records/1?status=RETUR
 ```
 **响应：**
 ```json
-{"code":200,"message":"操作成功","data":{"total":1,"records":[{"loan_id":1,"title":"三体","barcode":"ITEM2026000001","borrow_date":"2026-10-08","due_date":"2026-11-07","return_date":null,"status":"RETURN_REQUESTED","is_overdue":false,"renew_count":0}]}}
+{"code":200,"message":"操作成功","data":{"total":1,"records":[{"loan_id":1,"title":"三体","barcode":"ITEM2026000001","borrow_date":"2026-10-11","due_date":"2026-11-10","return_date":null,"status":"RETURN_REQUESTED","is_overdue":false,"renew_count":0}]}}
 ```
 > 结构正确：code=200, message=操作成功
 
@@ -58,7 +58,7 @@ curl.exe -s -X POST "http://127.0.0.1:8001/api/circulation/return-requests/1/rej
 ```
 **响应：**
 ```json
-{"code":200,"message":"归还申请已驳回","data":{"loan_id":1,"reader_id":1,"reader_name":"张三","title":"三体","barcode":"ITEM2026000001","borrow_date":"2026-10-08","due_date":"2026-11-07","is_overdue":false,"renew_count":0,"status":"BORROWED"}}
+{"code":200,"message":"归还申请已驳回","data":{"loan_id":1,"reader_id":1,"reader_name":"张三","title":"三体","barcode":"ITEM2026000001","borrow_date":"2026-10-11","due_date":"2026-11-10","is_overdue":false,"renew_count":0,"status":"BORROWED"}}
 ```
 > 结构正确：code=200, message=归还申请已驳回
 
@@ -68,7 +68,7 @@ curl.exe -s -X GET "http://127.0.0.1:8001/api/circulation/records/1?status=BORRO
 ```
 **响应：**
 ```json
-{"code":200,"message":"操作成功","data":{"total":1,"records":[{"loan_id":1,"title":"三体","barcode":"ITEM2026000001","borrow_date":"2026-10-08","due_date":"2026-11-07","return_date":null,"status":"BORROWED","is_overdue":false,"renew_count":0}]}}
+{"code":200,"message":"操作成功","data":{"total":1,"records":[{"loan_id":1,"title":"三体","barcode":"ITEM2026000001","borrow_date":"2026-10-11","due_date":"2026-11-10","return_date":null,"status":"BORROWED","is_overdue":false,"renew_count":0}]}}
 ```
 > 结构正确：code=200, message=操作成功
 
@@ -78,7 +78,7 @@ curl.exe -s -X POST "http://127.0.0.1:8001/api/circulation/return-request" -H "A
 ```
 **响应：**
 ```json
-{"code":200,"message":"归还申请已提交，等待馆员审核","data":{"loan_id":1,"reader_id":1,"reader_name":"张三","title":"三体","barcode":"ITEM2026000001","borrow_date":"2026-10-08","due_date":"2026-11-07","is_overdue":false,"renew_count":0,"status":"RETURN_REQUESTED"}}
+{"code":200,"message":"归还申请已提交，等待馆员审核","data":{"loan_id":1,"reader_id":1,"reader_name":"张三","title":"三体","barcode":"ITEM2026000001","borrow_date":"2026-10-11","due_date":"2026-11-10","is_overdue":false,"renew_count":0,"status":"RETURN_REQUESTED"}}
 ```
 > 结构正确：code=200, message=归还申请已提交，等待馆员审核
 
@@ -88,7 +88,7 @@ curl.exe -s -X GET "http://127.0.0.1:8001/api/circulation/return-requests" -H "A
 ```
 **响应：**
 ```json
-{"code":200,"message":"操作成功","data":{"total":1,"records":[{"loan_id":1,"reader_id":1,"reader_name":"张三","title":"三体","barcode":"ITEM2026000001","borrow_date":"2026-10-08","due_date":"2026-11-07","is_overdue":false,"renew_count":0,"status":"RETURN_REQUESTED"}]}}
+{"code":200,"message":"操作成功","data":{"total":1,"records":[{"loan_id":1,"reader_id":1,"reader_name":"张三","title":"三体","barcode":"ITEM2026000001","borrow_date":"2026-10-11","due_date":"2026-11-10","is_overdue":false,"renew_count":0,"status":"RETURN_REQUESTED"}]}}
 ```
 > 结构正确：code=200, message=操作成功
 
@@ -98,7 +98,7 @@ curl.exe -s -X POST "http://127.0.0.1:8001/api/circulation/return-requests/1/app
 ```
 **响应：**
 ```json
-{"code":200,"message":"归还审核通过","data":{"loan_id":1,"title":"三体","return_date":"2026-10-08","overdue_days":0,"fine":"0.00"}}
+{"code":200,"message":"归还审核通过","data":{"loan_id":1,"title":"三体","return_date":"2026-10-11","overdue_days":0,"fine":"0.00"}}
 ```
 > 结构正确：code=200, message=归还审核通过
 

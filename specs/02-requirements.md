@@ -420,7 +420,13 @@
 ### BR-017 借阅证注销条件
 存在未归还图书时不得注销借阅证。
 
-### BR-018a 赔偿规则
+### BR-018 评论审核规则
+评论状态机：`PENDING → APPROVED | REJECTED`。
+- 仅 `APPROVED` 评论对外可见，并计入 `average_rating`；
+- 审核由 SystemAdmin 执行，读者本人与 Librarian 均无审核权限；
+- 作者本人可查看自己的 `PENDING` / `REJECTED` 评论（不在公开列表中返回）。
+
+### BR-019 赔偿规则
 赔偿金额 `amount = BookTitle.price × CompensationPolicy.rate`，倍率按出借物类型：
 
 | 出借物类型 | 赔偿倍率 |
@@ -432,12 +438,6 @@
 - 未维护定价的图书登记丢失时拒绝（`400`）；
 - 赔偿记录 `paid = false` 时禁止借书（同 BR-006）；
 - 赔偿计算必须委托 `CompensationPolicy` 策略对象，禁止硬编码倍率。
-
-### BR-018 评论审核规则
-评论状态机：`PENDING → APPROVED | REJECTED`。
-- 仅 `APPROVED` 评论对外可见，并计入 `average_rating`；
-- 审核由 SystemAdmin 执行，读者本人与 Librarian 均无审核权限；
-- 作者本人可查看自己的 `PENDING` / `REJECTED` 评论（不在公开列表中返回）。
 
 ### BR-020 还书流程（读者申请 + 馆员审核）
 

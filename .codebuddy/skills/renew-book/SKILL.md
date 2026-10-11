@@ -2,7 +2,7 @@
 name: renew-book
 description: 续借图书技能。由 circulation-agent 在 orchestrator-agent 委派下调用，提供续借接口契约。
 metadata:
-  version: "1.1"
+  version: "1.2"
   api-base: "http://localhost:8001"
 ---
 
@@ -15,7 +15,7 @@ metadata:
 
 | 能力 | 方法 | 路径 | 请求体 | 返回关键字段 |
 |------|------|------|--------|-------------|
-| 查在借记录 | GET | `/api/circulation/records/{reader_id}` | `status=BORROWED`（query） | `data.records[].loan_id` |
+| 查在借记录 | GET | `/api/circulation/records/{reader_id}` | `status=BORROWED`（query；已申请归还的记录状态为 `RETURN_REQUESTED`，不带 `status` 可一并查到） | `data.records[].loan_id` |
 | 续借 | POST | `/api/circulation/renew` | `{loan_id}` | `data.new_due_date`、`data.renew_count` |
 
 ## Input
@@ -80,6 +80,7 @@ resp = httpx.post(
 | 400 | 该图书已逾期，请归还后重新借阅 | 提示先归还 |
 | 400 | 该图书已达续借上限（1 次） | 告知不能再续 |
 | 400 | 该图书已被预约，暂不可续借 | 说明有人排队 |
+| 400 | 该图书已提交归还申请，审核通过前无法续借 | 说明需等馆员审核或由馆员驳回申请后再续借 |
 | 403 | 只能续借本人的图书 / 未登录 | 引导登录或说明权限 |
 | 404 | 借阅记录不存在 | 核对记录 |
 

@@ -6,7 +6,7 @@
     任务二 评论 -> POST /api/reviews、GET /api/reviews、POST /api/reviews/{id}/moderate
   另验证 BR-020 两段式还书：读者发起归还申请 -> 馆员审核（通过/驳回）
 
-  前置：先启动后端 python main.py（启动时重建库，保证种子数据干净）
+  前置：先启动后端 python main.py（首次启动自动建库灌种子；需要干净数据时先设置环境变量 RESET_DB_ON_START=1 再启动）
   运行：powershell -ExecutionPolicy Bypass -File demo/curl-demo.ps1
 
   说明：下面展示的是标准 curl 命令（可直接在 bash / Git Bash / WSL 中执行）。

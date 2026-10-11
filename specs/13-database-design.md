@@ -159,7 +159,7 @@
 | created_at | DATETIME | N | | now | 创建时间（排队依据） |
 | expires_at | DATE | N | IDX | — | 有效期截止（created_at + 7 天） |
 | status | VARCHAR(20) | N | | 'ACTIVE' | ACTIVE / CANCELLED / FULFILLED / EXPIRED |
-| queue_position | INTEGER | Y | | NULL | 排队位次（读取时计算并回写） |
+| queue_position | INTEGER | Y | | NULL | 排队位次（创建时按 `created_at` 计算并持久化；取消 / 过期不重排，为创建时快照） |
 
 > **部分唯一索引**：`CREATE UNIQUE INDEX uq_resv_active ON reservations(reader_id, title_id) WHERE status='ACTIVE'` —— 有效预约唯一（BR-007）。
 

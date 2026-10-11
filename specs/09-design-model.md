@@ -263,6 +263,10 @@ def create_reservation(reader_id, title_id) -> ReservationDTO:
     return ...
 ```
 
+> **位次口径**：`queue_position` 在**创建时**计算并随预约一起持久化，查询接口直接返回该快照；
+> 取消或过期**不重排**后续位次（`count_effective_before` 仅在创建时参与计算），
+> 与 `13-database-design.md` 的字段说明一致。
+
 **有效预约判定（惰性失效）**
 
 ```python
@@ -310,7 +314,7 @@ def report_lost(barcode: str, operator: Account) -> LostResultDTO:
 
     title = title_repo.get(item.title_id)
     if title.price is None:
-        raise BusinessError("请先维护该图书定价")            # BR-018a
+        raise BusinessError("请先维护该图书定价")            # BR-019
 
     amount = compensation_policy.calculate_compensation(item.item_type, title.price)
     lost = LostItem(loan_id=loan.id, item_id=item.id,

@@ -311,7 +311,7 @@ CodeBuddy
 提供指导书中的 9 张参考图（用例图、借出书目结构化规格、领域类图、MVC 架构图、数据库 ER），要求对照检查并完善。
 
 ### Agent 修改文件
-- `specs/00-project-brief.md`、`specs/02-requirements.md`：借阅规则扩展为 `(reader_type, item_type)` 二维；新增 FR-027 处理赔偿、FR-028 管理借阅者、FR-029 管理图书管理员、FR-030 修改图书信息；新增 BR-018a 赔偿规则；BR-006 扩展为含未缴赔偿
+- `specs/00-project-brief.md`、`specs/02-requirements.md`：借阅规则扩展为 `(reader_type, item_type)` 二维；新增 FR-027 处理赔偿、FR-028 管理借阅者、FR-029 管理图书管理员、FR-030 修改图书信息；新增 BR-019 赔偿规则；BR-006 扩展为含未缴赔偿
 - `specs/03-use-cases.md`：新增 UC-022～UC-025；UC-009 补「结构化规格」（基本路径 7 步 + 4a/6a/6b/6c/6d/1a 异常路径，对齐参考格式）
 - `specs/04-use-case-model.puml`、`specs/06-domain-class-diagram.puml`：新增用例与 `LostItem`、`CompensationPolicy` 类
 - `specs/05-domain-model.md`：新增 `LostItem`、`CompensationPolicy`；`BorrowPolicy` 改为二维
@@ -702,7 +702,7 @@ Agent 契约：
 
 ### 人工审查结果
 待审查（依据 `18-review-checklist.md` B3 项：还书两段式流程覆盖读者申请 / 馆员审核 / 现场办理三通道）。
-发现并修正：后端与前端代码注释中两段式还书的规则编号一度误写为 BR-013（BR-013 实为「评分范围」），已全部校正为 **BR-020**；测试类 docstring 用例编号同步为 TC-083~TC-094。
+发现并修正：后端与前端代码注释中两段式还书的规则编号一度误写为 BR-013（BR-013 实为「评分范围」），已全部校正为 **BR-020**；测试类 docstring 用例编号同步为 TC-083~TC-095。
 
 ### 测试结果
 后端全量 `pytest`：**142 通过**（新增 `TestReturnRequestAudit` 8 条，覆盖申请、越权、非管理员审核、驳回后可续借、无申请审核、申请期占配额 / 禁续借、超期计费、现场办理）。

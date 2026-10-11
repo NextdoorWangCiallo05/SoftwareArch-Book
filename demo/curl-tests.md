@@ -4,7 +4,7 @@
 > - **任务一 续借** `POST /api/circulation/renew`
 > - **任务二 评论与评分** `POST /api/reviews`、`GET /api/reviews`、`POST /api/reviews/{review_id}/moderate`
 >
-> 运行环境：Windows + PowerShell 5.1，后端 `python main.py`（启动时重建库，种子数据干净）
+> 运行环境：Windows + PowerShell 5.1，后端 `python main.py`（首次启动自动建库灌种子；需要干净数据时先设置 `RESET_DB_ON_START=1` 再启动）
 > 复现方式：`powershell -ExecutionPolicy Bypass -File demo/curl-demo.ps1`
 > 原始输出：`demo/curl-output.txt`
 >
@@ -137,7 +137,7 @@ $ curl.exe -s "http://localhost:8001/api/reviews?title_id=1" \
 ## 4. 复现步骤
 
 ```powershell
-# 1）启动后端（启动时重建库）
+# 1）启动后端（首次启动建库灌种子；需要重置时先 $env:RESET_DB_ON_START="1"）
 cd backend
 python main.py
 
