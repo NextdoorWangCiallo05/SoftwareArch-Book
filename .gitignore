@@ -22,9 +22,12 @@ Thumbs.db
 ~$*
 *.tmp
 
-# 运行日志（本地调试产物）
-server*.log
-server*.err
+# 运行日志 / 测试与构建缓存（本地产物）
+*.log
+*.err
+.pytest_cache/
+dist/
+coverage/
 
 # 测试报告生成脚本的临时中间文件
 verify_return_body.json

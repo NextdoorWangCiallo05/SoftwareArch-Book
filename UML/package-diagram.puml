@@ -1,0 +1,187 @@
+@startuml
+!theme plain
+skinparam defaultFontName 微软雅黑
+skinparam classAttributeFontName 微软雅黑
+skinparam noteFontName 宋体
+title 对话式图书管理系统 - 包图（分层架构 + MVC 映射）
+skinparam packageStyle rectangle
+skinparam linetype ortho
+
+' 对应规格：specs/08-package-diagram.puml（本文件为仓库根目录展示版）
+' 对齐实验指导书要求：显式表达 presentation / application / domain / infrastructure / dto / test
+' 代码实际目录：backend/app/{core, presentation/routers, application, domain, infrastructure, schemas}
+
+package "presentation 表现层  «Controller»" as PRES {
+  package "routers" as ROUTERS {
+    [auth_router] as R_AUTH
+    [catalog_router] as R_CATALOG
+    [circulation_router] as R_CIRC
+    [reservation_router] as R_RESV
+    [review_router] as R_REVIEW
+    [admin_router] as R_ADMIN
+    [system_router] as R_SYSTEM
+  }
+}
+
+package "dto 数据传输对象  «View»" as DTO {
+  [request DTO] as DTO_REQ
+  [response DTO] as DTO_RES
+  [统一响应信封 ResponseEnvelope] as DTO_ENV
+}
+
+package "core 公共支撑" as CORE {
+  [exceptions 异常体系] as CORE_EX
+  [security 认证依赖] as CORE_SEC
+  [config 配置] as CORE_CFG
+}
+
+package "application 应用层  «Service»" as APP {
+  [auth_service] as S_AUTH
+  [catalog_service] as S_CATALOG
+  [circulation_service] as S_CIRC
+  [reservation_service] as S_RESV
+  [review_service] as S_REVIEW
+  [admin_service] as S_ADMIN
+}
+
+package "domain 领域层  «Model»" as DOMAIN {
+  package "entities" as E_ENT {
+    [Account / Reader / Librarian / SystemAdmin] as E_ACCOUNT
+    [BorrowCard] as E_CARD
+    [BookTitle / LibraryItem] as E_ITEM
+    [Loan / Reservation] as E_LOAN
+    [FineRecord / LostItem / BookReview] as E_FINE
+  }
+  package "value_objects (枚举)" as E_VO {
+    [Role / ReaderType / ItemType] as VO_TYPE
+    [ItemStatus / LoanStatus / CardStatus] as VO_STATUS
+    [ReservationStatus / ReviewStatus] as VO_RESV
+  }
+  package "policies (Strategy)" as E_POL {
+    [BorrowPolicy] as P_BORROW
+    [FineRule] as P_FINE
+    [CompensationPolicy] as P_COMP
+  }
+  package "services (领域服务)" as E_SVC {
+    [CirculationPolicyChecker] as DS_CHECKER
+    [FineCalculator] as DS_FINE
+  }
+  package "repositories (接口 / Protocol)" as E_REPO {
+    [ReaderRepository] as RP_READER
+    [ItemRepository] as RP_ITEM
+    [LoanRepository] as RP_LOAN
+    [ReservationRepository] as RP_RESV
+    [ReviewRepository] as RP_REVIEW
+    [PolicyRepository] as RP_POLICY
+  }
+}
+
+package "infrastructure 基础设施层" as INFRA {
+  package "db" as I_DB {
+    [SQLAlchemy Base / Session] as I_BASE
+    [ORM Models (16 张表 / 单表继承)] as I_ORM
+    [seed 种子数据] as I_SEED
+  }
+  package "repositories (实现)" as I_REPO {
+    [SQLAlchemy Repositories] as I_REPO_IMPL
+  }
+  package "security" as I_SEC {
+    [PasswordHasher] as I_HASH
+    [TokenStore] as I_TOKEN
+  }
+}
+
+package "test 测试层" as TEST {
+  [unit 单元测试（领域与策略）] as T_UNIT
+  [integration 集成测试（API）] as T_INT
+  [e2e 端到端验收脚本] as T_E2E
+}
+
+'========== 表现层 → 应用层（Controller 只调 Service） ==========
+R_AUTH --> S_AUTH
+R_CATALOG --> S_CATALOG
+R_CIRC --> S_CIRC
+R_RESV --> S_RESV
+R_REVIEW --> S_REVIEW
+R_ADMIN --> S_ADMIN
+
+'========== 表现层 → dto / core ==========
+ROUTERS ..> DTO_REQ
+ROUTERS ..> DTO_RES
+ROUTERS ..> DTO_ENV
+ROUTERS ..> CORE_EX
+R_AUTH ..> CORE_SEC
+R_CIRC ..> CORE_SEC
+R_ADMIN ..> CORE_SEC
+R_SYSTEM ..> CORE_CFG
+
+'========== 应用层 → 领域层 ==========
+S_AUTH --> E_ACCOUNT
+S_CIRC --> E_LOAN
+S_CIRC --> DS_CHECKER
+S_CIRC --> P_BORROW
+S_CIRC --> RP_LOAN
+S_CIRC --> RP_ITEM
+S_CIRC --> P_COMP
+S_RESV --> E_LOAN
+S_RESV --> RP_RESV
+S_CATALOG --> E_ITEM
+S_CATALOG --> RP_ITEM
+S_REVIEW --> E_FINE
+S_REVIEW --> RP_REVIEW
+S_ADMIN --> E_CARD
+S_ADMIN --> RP_POLICY
+APP ..> DTO_RES
+
+'========== 领域层内部 ==========
+DS_CHECKER --> P_BORROW
+DS_CHECKER --> E_CARD
+DS_FINE --> P_FINE
+DS_FINE --> E_FINE
+P_BORROW ..> VO_TYPE
+P_FINE ..> E_ITEM
+E_ENT ..> VO_STATUS
+E_LOAN ..> VO_RESV
+
+'========== 基础设施层实现领域层接口（依赖倒置） ==========
+I_REPO_IMPL .up.|> RP_READER : 实现
+I_REPO_IMPL .up.|> RP_LOAN : 实现
+I_REPO_IMPL .up.|> RP_ITEM : 实现
+I_REPO_IMPL .up.|> RP_RESV : 实现
+I_REPO_IMPL .up.|> RP_REVIEW : 实现
+I_REPO_IMPL .up.|> RP_POLICY : 实现
+
+I_REPO_IMPL --> I_BASE
+I_ORM --> I_BASE
+I_SEED --> I_ORM
+S_AUTH ..> I_HASH
+S_AUTH ..> I_TOKEN
+
+'========== 测试层 ==========
+T_INT --> ROUTERS
+T_E2E --> ROUTERS
+T_UNIT --> E_POL
+T_UNIT --> E_ENT
+T_UNIT --> E_SVC
+
+note bottom of DOMAIN
+  领域层不依赖 FastAPI、
+  SQLAlchemy Session 与 HTTP 概念
+end note
+
+note right of PRES
+  Controller 不得直接依赖 Repository
+end note
+
+note bottom of INFRA
+  仓储接口声明在 domain，
+  实现在 infrastructure（依赖倒置）
+end note
+
+note bottom of DTO
+  对应 backend/app/schemas：
+  请求校验与响应序列化，
+  不承载业务规则
+end note
+
+@enduml

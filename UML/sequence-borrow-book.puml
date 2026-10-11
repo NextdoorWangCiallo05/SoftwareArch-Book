@@ -1,0 +1,145 @@
+@startuml
+!theme plain
+skinparam defaultFontName 微软雅黑
+skinparam classAttributeFontName 微软雅黑
+skinparam noteFontName 宋体
+title 顺序图：办理借书（UC-009，含 UC-009A 验证借阅证）
+skinparam linetype ortho
+autonumber
+
+' 对应规格：specs/10-sequence-borrow-book.puml（本文件为仓库根目录展示版）
+' 参与对象对齐实验指导书列举：LibrarianController / CirculationService / BorrowPolicyService /
+' BorrowCardRepository / ReaderRepository / LoanRepository / LibraryItemRepository /
+' BorrowPolicyService / Reader / LibraryItem / Loan
+
+actor "图书管理员" as Librarian
+
+participant "LibrarianController\n(circulation_router)" as Ctrl
+participant "CirculationService" as Svc
+participant "BorrowPolicyService\n(CirculationPolicyChecker)" as Checker
+participant "BorrowCardRepository" as CardRepo
+participant "ReaderRepository" as ReaderRepo
+participant "LibraryItemRepository" as ItemRepo
+participant "LoanRepository" as LoanRepo
+participant "BorrowPolicy\n(策略表)" as Policy
+participant "Reader" as Reader
+participant "LibraryItem" as Item
+participant "Loan" as Loan
+
+== 1. 请求与权限校验 ==
+
+Librarian -> Ctrl : POST /api/circulation/borrow\n{card_no, barcode}\nHeader: Bearer token
+Ctrl -> Svc : borrow(card_no, barcode, operator)
+
+alt 操作者不是 Librarian
+    Svc --> Ctrl : raise PermissionDeniedError
+    Ctrl --> Librarian : 403 仅图书管理员可办理借书
+else 角色校验通过
+    Svc -> Svc : 记录事务开始
+end
+
+== 2. 校验借阅证（UC-009A） ==
+
+Svc -> CardRepo : find_by_no(card_no)
+CardRepo --> Svc : BorrowCard
+
+alt 借阅证不存在
+    Svc --> Ctrl : raise NotFoundError
+    Ctrl --> Librarian : 404 借阅证不存在
+else 借阅证非 ACTIVE（挂失 / 注销）
+    Svc -> Svc : card.is_valid() = false
+    Svc --> Ctrl : raise BusinessError
+    Ctrl --> Librarian : 400 借阅证无效
+end
+
+== 3. 加载读者与馆藏 ==
+
+Svc -> ReaderRepo : get(card.reader_id)
+ReaderRepo --> Svc : Reader
+Svc -> ItemRepo : find_by_barcode(barcode)
+ItemRepo --> Svc : LibraryItem
+
+alt 馆藏不存在
+    Svc --> Ctrl : raise NotFoundError
+    Ctrl --> Librarian : 404 馆藏不存在
+end
+
+== 4. 借书前置校验（BR-001 ~ BR-006） ==
+
+Svc -> Checker : check_before_borrow(reader, item)
+Checker -> Policy : get_max_borrow_count(reader_type, item_type)
+Policy --> Checker : max_borrow_count
+Checker -> LoanRepo : count_active(reader_id)
+LoanRepo --> Checker : active_count
+Checker -> Reader : can_borrow(max_borrow_count, active_count)
+Reader --> Checker : true / false
+
+alt can_borrow = false（已达上限）
+    Checker --> Svc : BusinessError 借阅已满
+    Svc --> Ctrl : 400 借阅已满（n/max），请先归还
+else 数量未超限
+    Checker -> Reader : has_overdue()
+    Reader --> Checker : true / false
+    alt has_overdue = true
+        Checker --> Svc : BusinessError 有超期未还
+        Svc --> Ctrl : 400 有 n 本图书超期未还，请先归还
+    else 无超期
+        Checker -> LoanRepo : has_unpaid_fine(reader_id)
+        LoanRepo --> Checker : bool
+        alt 存在未缴罚款
+            Checker --> Svc : BusinessError 有未缴罚款
+            Svc --> Ctrl : 400 存在未缴罚款，请先缴清
+        else 无未缴罚款
+            Checker -> Item : is_available()
+            Item --> Checker : true / false
+            alt item.status != AVAILABLE
+                Checker --> Svc : BusinessError 馆藏不可借
+                Svc --> Ctrl : 400 该馆藏不可借
+            else 可借
+                Checker --> Svc : 校验通过
+            end
+        end
+    end
+end
+
+== 5. 创建借阅记录（同一事务） ==
+
+Svc -> Policy : get_borrow_days(reader_type, item_type)
+Policy --> Svc : borrow_days
+Svc -> Loan : create(reader, item, due_date = today + borrow_days)
+activate Loan
+Loan -> Loan : status = BORROWED\nrenew_count = 0
+Loan --> Svc : Loan
+Svc -> Item : mark_borrowed()
+activate Item
+Item --> Svc : status = BORROWED
+deactivate Item
+Svc -> LoanRepo : add(loan)
+LoanRepo --> Svc : loan_id
+deactivate Loan
+
+alt 提交成功
+    Svc -> Svc : commit 事务
+    Svc --> Ctrl : BorrowResultDTO{loan_id, title, barcode, due_date}
+    Ctrl --> Librarian : 200 借阅成功，请于 {due_date} 前归还
+else 提交失败
+    Svc -> Svc : rollback 事务
+    Svc --> Ctrl : raise InfrastructureError
+    Ctrl --> Librarian : 500 系统繁忙，请稍后重试
+end
+
+note right of Checker
+  配额与超期判定：
+  数量由 LoanRepository 统计后
+  交由 Reader.can_borrow() 判定，
+  超期由 Reader.has_overdue() 判定
+end note
+
+note over Policy
+  二维策略 (reader_type, item_type)：
+  专科 3/30、本科 5/30、研究生 10/60、
+  博士 15/90、教师 20/90；
+  未命中时回退到 item_type = ALL
+end note
+
+@enduml
