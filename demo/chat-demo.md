@@ -48,6 +48,12 @@
 - 仅"在借（BORROWED）"记录可续借；已归还记录 → `400 该图书已归还，无法续借` ✅（见 `e2e_report.md` F-02）
 - 续借上限 1 次 → `400 该图书已达续借上限（1 次）` ✅（E-02）
 
+**实测截图**（任务卡 5.3，`ScreenShots/`）：
+
+![任务一·续借对话截图 1](../ScreenShots/task1-renew-1.png)
+
+![任务一·续借对话截图 2](../ScreenShots/task1-renew-2.png)
+
 ---
 
 ## 3. 演示三：图书评论与评分（任务卡 任务二）
@@ -71,6 +77,16 @@
 - 评分评论保存成功 ✅
 - 列出评论列表与平均评分 ✅
 - 评分超出 1–5 被后端拒绝 → `400 评分必须为 1-5 的整数` ✅（I-02）
+
+**实测截图**（任务卡 5.3，`ScreenShots/`）：
+
+![任务二·评论与评分对话截图 1](../ScreenShots/task2-review-1.png)
+
+![任务二·评论与评分对话截图 2](../ScreenShots/task2-review-2.png)
+
+![任务二·评论与评分对话截图 3](../ScreenShots/task2-review-3.png)
+
+![任务二·评论与评分对话截图 4](../ScreenShots/task2-review-4.png)
 
 ---
 

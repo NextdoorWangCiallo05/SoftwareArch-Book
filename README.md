@@ -99,6 +99,7 @@
 │  ├─ agents/                 # orchestrator-agent（编排）、circulation-agent（流通执行者）
 │  └─ skills/                 # book-search / book-review / borrow-book / renew-book / return-book / user-manage
 ├─ demo/                      # 提交产物：curl 测试记录、对话演示、复现脚本
+├─ ScreenShots/               # 任务卡 5.3 实测截图：任务一续借 2 张 + 任务二评论 4 张
 └─ Document/                  # 课程提供的实验指导书与参考资料（非本项目交付物）
 ```
 
@@ -238,6 +239,7 @@ powershell -ExecutionPolicy Bypass -File demo/return-flow-curl-verify.ps1
 | 端到端真实接口验收 | 30 / 30 | `backend/scripts/e2e_report.md` |
 | 接口 curl 记录 | 通过 | `demo/curl-tests.md`、`demo/return-flow-curl-test.md` |
 | 对话链路演示 | 4 段 | `demo/chat-demo.md` |
+| 任务卡 5.3 实测截图 | 6 张 | `ScreenShots/`（内嵌于 `demo/chat-demo.md` 演示二 / 演示三） |
 
 ---
 
@@ -304,7 +306,8 @@ powershell -ExecutionPolicy Bypass -File demo/return-flow-curl-verify.ps1
 | `实验报告.md` | 实验一（架构设计与 Spec 建模）+ 实验二（详细设计与 Agent 实现）+ AI 使用复盘 |
 | `提交产物清单.md` | 任务卡第 5 节四要素逐项对照、任务一/任务二的实现位置与验收证据、复现步骤 |
 | `backend/README.md` | 后端技术细节：目录结构、启动、测试、账号、完整接口清单、业务规则速查 |
-| `demo/chat-demo.md` | 4 段对话演示（借书 / 续借 / 评论 / 还书），逐条对齐验收标准与路由判断 |
+| `demo/chat-demo.md` | 4 段对话演示（借书 / 续借 / 评论 / 还书），逐条对齐验收标准与路由判断，内嵌任务卡 5.3 实测截图 |
+| `ScreenShots/` | 任务卡 5.3 实测截图：任务一续借 2 张、任务二评论 4 张 |
 | `demo/curl-tests.md` | 任务一 + 任务二接口 curl 测试记录（含复现脚本与原始输出） |
 | `demo/return-flow-curl-test.md` | 扩展功能 BR-020 两段式还书 curl 记录（申请 → 驳回 → 再审 → 通过） |
 | `Document/` | 课程提供的实验指导书、实验一/二详细要求、Agent 提示词手册、工具链说明书 |
