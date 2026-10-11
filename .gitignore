@@ -25,6 +25,7 @@ Thumbs.db
 # 运行日志 / 测试与构建缓存（本地产物）
 *.log
 *.err
+logs/
 .pytest_cache/
 dist/
 coverage/

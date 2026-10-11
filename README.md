@@ -85,6 +85,7 @@
 ```text
 仓库根目录/
 ├─ README.md                  # 本文件（仓库首页）
+├─ run.ps1                    # 一键运行脚本：启动前后端 + 健康检查（见 §6.1）
 ├─ 实验报告.md                # 实验报告（Markdown 版）
 ├─ 提交产物清单.md            # 交付物逐项对照表（提交入口）
 ├─ 学生任务卡.md              # 课程下发的扩展任务卡
@@ -121,7 +122,21 @@
 
 后端监听端口由 `backend/app/core/config.py` 的 `API_PORT` 控制（默认 8001），数据库地址、CORS 来源、令牌有效期等同样可用环境变量覆盖。
 
-### 6.1 后端
+### 6.1 一键运行（推荐）
+
+```powershell
+powershell -ExecutionPolicy Bypass -File run.ps1              # 启动后端 :8001 + 前端 :5173
+powershell -ExecutionPolicy Bypass -File run.ps1 -Reset       # 先重置演示数据再启动
+powershell -ExecutionPolicy Bypass -File run.ps1 -BackendOnly # 只启动后端（跑 pytest / 验收脚本）
+powershell -ExecutionPolicy Bypass -File run.ps1 -Open        # 启动后自动打开浏览器
+powershell -ExecutionPolicy Bypass -File run.ps1 -Detach      # 启动后脚本退出，服务留在后台
+powershell -ExecutionPolicy Bypass -File run.ps1 -Stop        # 停止后台残留的进程
+```
+
+脚本会检查 Python / Node 是否可用、按需安装依赖、等待健康检查通过；前台运行时按 `Ctrl+C` 一并停止前后端，
+运行日志写入 `logs/`（`backend.log` / `frontend.log` 等，已被 `.gitignore` 忽略）。
+
+### 6.2 手动启动后端
 
 ```powershell
 cd backend
@@ -133,7 +148,7 @@ python main.py          # http://localhost:8001
 - 首次启动自动建库并灌入种子数据；重复启动**不会**清空已有数据。
   需要重置演示数据时，设置 `$env:RESET_DB_ON_START="1"` 后重启（或删除 `backend/app/library.db`）
 
-### 6.2 前端
+### 6.3 手动启动前端
 
 ```powershell
 cd frontend
@@ -300,5 +315,5 @@ powershell -ExecutionPolicy Bypass -File demo/return-flow-curl-verify.ps1
 
 - 脚本会改变库状态；需要从清洁状态复现时，设置 `$env:RESET_DB_ON_START="1"` 后重启后端（默认重启**不清空**数据）。
 - 文档中的令牌均已脱敏为 `<TOKEN>`；记录中的具体日期随运行日变化（借期由运行当日推算），属正常现象。
-- 运行日志（`server*.log` / `server*.err`）、`*.db`、`__pycache__`、`node_modules/`、`dist/` 均已由 `.gitignore` 忽略，不随提交带出。
+- 运行日志（`logs/`、`server*.log` / `server*.err`）、`*.db`、`__pycache__`、`node_modules/`、`dist/` 均已由 `.gitignore` 忽略，不随提交带出。
 - `Document/` 为课程下发资料，不属于本项目交付内容。
