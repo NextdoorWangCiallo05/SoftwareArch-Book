@@ -86,7 +86,8 @@
 仓库根目录/
 ├─ README.md                  # 本文件（仓库首页）
 ├─ run.ps1                    # 一键运行脚本：启动前后端 + 健康检查（见 §6.1）
-├─ 实验报告.md                # 实验报告（Markdown 版）
+├─ 实验报告一-架构设计与Spec建模.md   # 实验一报告：Spec 建模与架构设计
+├─ 实验报告二-详细设计与Agent实现.md  # 实验二报告：详细设计、代码实现与验收
 ├─ 提交产物清单.md            # 交付物逐项对照表（提交入口）
 ├─ 学生任务卡.md              # 课程下发的扩展任务卡
 ├─ specs/                     # 实验一 Spec 建模：需求 / 用例 / 领域 / 架构 / 详细设计 / 数据库 / API / 测试 / 任务 / 风险 / AI 记录
@@ -307,7 +308,7 @@ powershell -ExecutionPolicy Bypass -File demo/return-flow-curl-verify.ps1
 | 5 | README.md | 根目录 `README.md` + `backend/README.md` |
 | 6 | ai-usage-log.md | `specs/19-ai-usage-log.md`（20 次记录） |
 | 7 | Git commit 记录 | 38 次提交（截至 2026-10-14）+ 2 个 baseline tag（含 Specs 生成、审查修订、逐 TASK 实现、交付完善） |
-| 8 | 实验报告 | `实验报告.md`（Markdown 版） |
+| 8 | 实验报告 | `实验报告一-架构设计与Spec建模.md`（实验一）+ `实验报告二-详细设计与Agent实现.md`（实验二） |
 
 ---
 
@@ -315,7 +316,8 @@ powershell -ExecutionPolicy Bypass -File demo/return-flow-curl-verify.ps1
 
 | 文档 | 内容 |
 |---|---|
-| `实验报告.md` | 实验一（架构设计与 Spec 建模）+ 实验二（详细设计与 Agent 实现）+ AI 使用复盘 |
+| `实验报告一-架构设计与Spec建模.md` | 实验一：Spec 建模与架构设计（Brief → 需求 → 用例 → 领域 → 架构 → 数据库 → 风险审查 → 冻结 baseline） |
+| `实验报告二-详细设计与Agent实现.md` | 实验二：详细设计、代码实现、Agent 接入层、测试验收、AI 使用复盘 |
 | `提交产物清单.md` | 任务卡第 5 节四要素逐项对照、任务一/任务二的实现位置与验收证据、复现步骤 |
 | `backend/README.md` | 后端技术细节：目录结构、启动、测试、账号、完整接口清单、业务规则速查 |
 | `demo/chat-demo.md` | 4 段对话演示（借书 / 续借 / 评论 / 还书），逐条对齐验收标准与路由判断，内嵌任务卡 5.3 实测截图 |
