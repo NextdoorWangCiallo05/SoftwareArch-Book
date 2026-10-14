@@ -5,7 +5,7 @@
 
 | 规格文档 | UML 图（PlantUML） | 自动化测试 | 端到端验收 | AI 使用记录 | Git 演进 |
 |---|---|---|---|---|---|
-| 21 份（`00`–`19` + 开发宪法） | 6 张（用例图/类图/包图/顺序图×3） | `142 passed` | `30 / 30` 通过 | 21 次，含审查与纠偏 | 42 次提交（截至 2026-10-14）+ 2 个 baseline tag |
+| 21 份（`00`–`19` + 开发宪法） | 6 张（用例图/类图/包图/顺序图×3） | `142 passed` | `30 / 30` 通过 | 21 次，含审查与纠偏 | 44 次提交（截至 2026-10-14）+ 2 个 baseline tag |
 
 ---
 
@@ -308,7 +308,7 @@ powershell -ExecutionPolicy Bypass -File demo/return-flow-curl-verify.ps1
 | 4 | 自动化测试 | `backend/tests/`（单元 + 集成）+ `backend/scripts/e2e_acceptance.py` |
 | 5 | README.md | 根目录 `README.md` + `backend/README.md` |
 | 6 | ai-usage-log.md | `specs/19-ai-usage-log.md`（21 次记录） |
-| 7 | Git commit 记录 | 42 次提交（截至 2026-10-14）+ 2 个 baseline tag（含 Specs 生成、审查修订、逐 TASK 实现、交付完善） |
+| 7 | Git commit 记录 | 44 次提交（截至 2026-10-14）+ 2 个 baseline tag（含 Specs 生成、审查修订、逐 TASK 实现、交付完善） |
 | 8 | 实验报告 | `实验报告一-架构设计与Spec建模.md`（实验一）+ `实验报告二-详细设计与Agent实现.md`（实验二） |
 
 ---
