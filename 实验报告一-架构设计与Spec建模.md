@@ -240,7 +240,7 @@ Baseline tag：
 | 10 | `13-database-design.md` | `specs/13-database-design.md` | ✅ |
 | 11 | `17-risk-analysis.md` | `specs/17-risk-analysis.md` | ✅ |
 | 12 | `18-review-checklist.md` | `specs/18-review-checklist.md` | ✅ |
-| 13 | `19-ai-usage-log.md` | `specs/19-ai-usage-log.md`（第 1–15 次记录，后 5 次在实验二续记） | ✅ |
+| 13 | `19-ai-usage-log.md` | `specs/19-ai-usage-log.md`（第 1–15 次记录，后 6 次在实验二续记） | ✅ |
 | 14 | Git commit 记录 | 本报告第六章（初始化 → baseline） | ✅ |
 
 ---

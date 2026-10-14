@@ -5,7 +5,7 @@
 
 | 规格文档 | UML 图（PlantUML） | 自动化测试 | 端到端验收 | AI 使用记录 | Git 演进 |
 |---|---|---|---|---|---|
-| 21 份（`00`–`19` + 开发宪法） | 6 张（用例图/类图/包图/顺序图×3） | `142 passed` | `30 / 30` 通过 | 20 次，含审查与纠偏 | 38 次提交（截至 2026-10-14）+ 2 个 baseline tag |
+| 21 份（`00`–`19` + 开发宪法） | 6 张（用例图/类图/包图/顺序图×3） | `142 passed` | `30 / 30` 通过 | 21 次，含审查与纠偏 | 42 次提交（截至 2026-10-14）+ 2 个 baseline tag |
 
 ---
 
@@ -267,7 +267,7 @@ powershell -ExecutionPolicy Bypass -File demo/return-flow-curl-verify.ps1
 | `16-tasks.md` | TASK 拆解（目标、输入规格、允许修改文件、验收标准） | Construction |
 | `17-risk-analysis.md` | 风险分析 R-01–R-24 与缓解措施 | Elaboration |
 | `18-review-checklist.md` | 人工审查清单 | Transition |
-| `19-ai-usage-log.md` | AI 使用记录（20 次：Prompt、改动文件、测试结果、审查、提交） | 全程 |
+| `19-ai-usage-log.md` | AI 使用记录（21 次：Prompt、改动文件、测试结果、审查、提交） | 全程 |
 | `constitution.md` | 开发宪法（11 条 Agent 行为约束） | Inception |
 
 ### 11.1 核心用例（标注"重点用例"的端到端链路）
@@ -294,6 +294,7 @@ powershell -ExecutionPolicy Bypass -File demo/return-flow-curl-verify.ps1
 - **Baseline tag**：`experiment1-specs-baseline-v1`（实验一 Specs 冻结）、`experiment2-specs-baseline-v1`（代码实现前冻结）
 - **实现阶段不得修改 specs**；确需变更时先提交变更影响分析（`19-ai-usage-log.md` 第 19、20 次记录即为示例，完整变更清单见 `提交产物清单.md` §9）
 - **Agent 契约三条铁律**：`SKILL.md` 是提示词不是代码；穿过 API 边界的名字必须与后端一致；只描述流程的措辞用自然语言
+- **未组队时的降级约定**：若运行环境未组队、`circulation-agent` 无法作为独立子 Agent 被委派（工具返回 `Not in a team.`），`orchestrator-agent` 按硬约束第 6 条降级为编排层自执行：严格依据 `circulation-agent/SKILL.md` 及其引用的 skill 契约完成接口调用，不凭记忆编造接口路径与字段名，并在回复中说明"已降级为自执行"（实测记录见 `demo/chat-demo.md` §6）
 
 ---
 
@@ -306,8 +307,8 @@ powershell -ExecutionPolicy Bypass -File demo/return-flow-curl-verify.ps1
 | 3 | 源代码 | `backend/`（四层架构）+ `frontend/`（Vue 3） |
 | 4 | 自动化测试 | `backend/tests/`（单元 + 集成）+ `backend/scripts/e2e_acceptance.py` |
 | 5 | README.md | 根目录 `README.md` + `backend/README.md` |
-| 6 | ai-usage-log.md | `specs/19-ai-usage-log.md`（20 次记录） |
-| 7 | Git commit 记录 | 38 次提交（截至 2026-10-14）+ 2 个 baseline tag（含 Specs 生成、审查修订、逐 TASK 实现、交付完善） |
+| 6 | ai-usage-log.md | `specs/19-ai-usage-log.md`（21 次记录） |
+| 7 | Git commit 记录 | 42 次提交（截至 2026-10-14）+ 2 个 baseline tag（含 Specs 生成、审查修订、逐 TASK 实现、交付完善） |
 | 8 | 实验报告 | `实验报告一-架构设计与Spec建模.md`（实验一）+ `实验报告二-详细设计与Agent实现.md`（实验二） |
 
 ---

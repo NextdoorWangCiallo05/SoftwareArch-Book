@@ -708,4 +708,39 @@ Agent 契约：
 后端全量 `pytest`：**142 通过**（新增 `TestReturnRequestAudit` 8 条，覆盖申请、越权、非管理员审核、驳回后可续借、无申请审核、申请期占配额 / 禁续借、超期计费、现场办理）。
 
 ### Git 提交
-待提交（`feat: two-stage return flow with reader request and librarian audit (BR-020)`）
+`b144f1f` —— add frontend source, two-stage book return and submission deliverables（feat: two-stage return flow with reader request and librarian audit, BR-020）
+
+---
+
+## 第 21 次使用
+
+### 使用工具
+CodeBuddy
+
+### 使用阶段
+界面优化：前端视觉玻璃拟态（Glassmorphism）重构
+
+### 输入 Prompt 摘要
+"前端界面优化" —— 要求在不改变任何功能、路由与组件结构的前提下，重写样式层，将界面升级为玻璃拟态视觉风格。
+
+### Agent 修改文件
+前端：
+- `frontend/src/styles.css`（全量重写：+220 / −72 行）
+
+未改动：全部 `.vue` 组件、`frontend/src/api/index.js`、路由与后端代码（纯样式层，零 DOM 结构与类名变更）。
+
+### 输出摘要
+- 新增玻璃拟态设计令牌：`--glass-blur` / `--glass-blur-strong`（`saturate + blur` 背景模糊）、`--glass-edge`（半透明描边）、`--glass-highlight`（内侧高光）；
+- 侧边栏、卡片、表格容器、模态框、抽屉统一为"半透明表面 + `backdrop-filter` 背景模糊 + 高光描边"，并补齐 `-webkit-backdrop-filter` 前缀；
+- 主按钮与强调元素改用渐变填充 + 彩色投影（`--shadow-glow`）；
+- 保留全部既有类名、DOM 结构、响应式断点与动画定义。
+
+### 人工审查结果
+- 静态一致性：改写后比对 `frontend/src` 全部 `.vue` 引用的类名与样式选择器，**0 个类名丢失、0 个新增未被引用的类**；
+- 人工视觉验收：待完成（前端 5173 与后端 8001 均在运行，可直接在内置预览中验收各页面）。
+
+### 测试结果
+前端 `vite` 编译与热更新通过，无错误；纯样式层改动未触及业务逻辑与接口调用，后端 142 条用例与 30 个接口场景不受影响（未重跑）。
+
+### Git 提交
+`88b54be` —— style: frontend glassmorphism visual refresh (styles.css only, no structural change)
