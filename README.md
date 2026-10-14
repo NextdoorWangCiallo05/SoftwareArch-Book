@@ -5,7 +5,7 @@
 
 | 规格文档 | UML 图（PlantUML） | 自动化测试 | 端到端验收 | AI 使用记录 | Git 演进 |
 |---|---|---|---|---|---|
-| 21 份（`00`–`19` + 开发宪法） | 6 张（用例图/类图/包图/顺序图×3） | `142 passed` | `30 / 30` 通过 | 20 次，含审查与纠偏 | 30 次提交 + 2 个 baseline tag |
+| 21 份（`00`–`19` + 开发宪法） | 6 张（用例图/类图/包图/顺序图×3） | `142 passed` | `30 / 30` 通过 | 20 次，含审查与纠偏 | 38 次提交（截至 2026-10-14）+ 2 个 baseline tag |
 
 ---
 
@@ -99,7 +99,9 @@
 │  ├─ agents/                 # orchestrator-agent（编排）、circulation-agent（流通执行者）
 │  └─ skills/                 # book-search / book-review / borrow-book / renew-book / return-book / user-manage
 ├─ demo/                      # 提交产物：curl 测试记录、对话演示、复现脚本
+├─ UML/                       # 6 张建模图的 PlantUML 源文件（.puml）与导出 PNG
 ├─ ScreenShots/               # 任务卡 5.3 实测截图：任务一续借 2 张 + 任务二评论 4 张
+├─ .specify/                  # Spec-Kit 工具链产物：开发宪法副本、脚本与模板
 └─ Document/                  # 课程提供的实验指导书与参考资料（非本项目交付物）
 ```
 
@@ -267,6 +269,16 @@ powershell -ExecutionPolicy Bypass -File demo/return-flow-curl-verify.ps1
 | `19-ai-usage-log.md` | AI 使用记录（20 次：Prompt、改动文件、测试结果、审查、提交） | 全程 |
 | `constitution.md` | 开发宪法（11 条 Agent 行为约束） | Inception |
 
+### 11.1 核心用例（标注"重点用例"的端到端链路）
+
+| 用例 | 名称 | 覆盖要点 |
+|---|---|---|
+| UC-009 | 办理借书 | 读者类型 / 馆藏类型差异化借期与配额；含对齐指导书参考格式的结构化规格 |
+| UC-010 | 申请还书与审核归还 | 读者发起申请（010.1）→ 馆员审核（010.2）；保留馆员现场办理通道（010.3）；审核通过时结算超期罚款 |
+| UC-011 | 续借图书 | 续借次数上限、超期阻塞、被预约阻塞（OPEN-02）等规则校验 |
+| UC-013 | 预约图书 | 无在架副本时可预约，预约有效期 7 天；被预约馆藏不可续借 |
+| UC-015 | 计算超期罚款 | 由 UC-010 包含（include）；按馆藏类型套用差异化罚款规则并生成罚款记录 |
+
 ---
 
 ## 12. AI 协作方式（本实验的关键）
@@ -279,7 +291,7 @@ powershell -ExecutionPolicy Bypass -File demo/return-flow-curl-verify.ps1
 - **开发宪法** `specs/constitution.md`：Specs 优先、Agent 起草人类确认、UML-as-Spec、Baseline 冻结、
   分层架构、MVC、权限区分、业务规则集中、测试闭环、Git 审查、AI 使用记录 —— 共 11 条
 - **Baseline tag**：`experiment1-specs-baseline-v1`（实验一 Specs 冻结）、`experiment2-specs-baseline-v1`（代码实现前冻结）
-- **实现阶段不得修改 specs**；确需变更时先提交变更影响分析（`19-ai-usage-log.md` 第 19、20 次记录即为示例）
+- **实现阶段不得修改 specs**；确需变更时先提交变更影响分析（`19-ai-usage-log.md` 第 19、20 次记录即为示例，完整变更清单见 `提交产物清单.md` §9）
 - **Agent 契约三条铁律**：`SKILL.md` 是提示词不是代码；穿过 API 边界的名字必须与后端一致；只描述流程的措辞用自然语言
 
 ---
@@ -294,7 +306,7 @@ powershell -ExecutionPolicy Bypass -File demo/return-flow-curl-verify.ps1
 | 4 | 自动化测试 | `backend/tests/`（单元 + 集成）+ `backend/scripts/e2e_acceptance.py` |
 | 5 | README.md | 根目录 `README.md` + `backend/README.md` |
 | 6 | ai-usage-log.md | `specs/19-ai-usage-log.md`（20 次记录） |
-| 7 | Git commit 记录 | 30 次提交 + 2 个 baseline tag（含 Specs 生成、审查修订、逐 TASK 实现） |
+| 7 | Git commit 记录 | 38 次提交（截至 2026-10-14）+ 2 个 baseline tag（含 Specs 生成、审查修订、逐 TASK 实现、交付完善） |
 | 8 | 实验报告 | `实验报告.md`（Markdown 版） |
 
 ---
