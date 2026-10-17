@@ -284,7 +284,7 @@ RETURN_REQUESTED --馆员驳回--> BORROWED（不生成罚款、副本状态不�
 | 测试 | pytest（单元 + 集成）、自研端到端验收脚本 | 142 个用例 + 30 个真实接口场景 |
 | 建模 | PlantUML | 详细设计模型与三张顺序图 |
 | Agent | CodeBuddy（Agent + Skill 契约） | 按 TASK 实现，编排层 + 流通执行者 |
-| 脚本 / 工具 | PowerShell（`run.ps1` 一键启动）、Git | 演示与版本管理 |
+| 脚本 / 工具 | `run.ps1` / `run.bat`（Windows）、`run.sh`（Linux/macOS）一键启动；Git | 演示与版本管理 |
 
 ### 3.2 工程目录与运行方式
 
@@ -294,7 +294,8 @@ frontend/   Vue 3 前端（三类工作台）
 demo/       curl 记录（任务一 / 任务二 / 两段式还书）与 4 段对话演示
 specs/      00–19 全部规格与 AI 使用记录
 UML/        6 张图的 PlantUML 源与导出 PNG
-run.ps1     一键启动前后端并做健康检查
+run.ps1     一键启动前后端并做健康检查（Windows）
+run.sh      等价启动脚本（Linux / macOS）
 ```
 
 ### 3.3 测试账号
@@ -427,7 +428,7 @@ python scripts/e2e_acceptance.py     # 生成 scripts/e2e_report.md，30 / 30 �
 | 4 | 有 API 或服务接口规范 | `specs/14-api-spec.md`（45 个端点） | ✅ |
 | 5 | 有测试计划 | `specs/15-test-plan.md`（102 条 TC） | ✅ |
 | 6 | 有按任务拆解的 tasks.md | `specs/16-tasks.md`（TASK-001–016） | ✅ |
-| 7 | 代码可以运行 | `run.ps1` 一键启动（前后端 + 健康检查） | ✅ |
+| 7 | 代码可以运行 | `run.ps1` / `run.sh` 一键启动（前后端 + 健康检查） | ✅ |
 | 8 | 自动化测试通过 | `backend/tests/`（142 个用例）+ `e2e_acceptance.py`（30/30） | ✅ |
 | 9 | 借书、还书、预约、查询至少可用 | 集成测试 + `e2e_report.md` 全覆盖 | ✅ |
 | 10 | 不同读者类型借阅规则可用 | 五类读者二维策略（专科 3/30 … 教师 20/90） | ✅ |

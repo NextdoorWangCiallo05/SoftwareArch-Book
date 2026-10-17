@@ -87,6 +87,7 @@
 ├─ README.md                  # 本文件（仓库首页）
 ├─ run.ps1                    # 一键运行脚本：启动前后端 + 健康检查（见 §6.1）
 ├─ run.bat                    # run.ps1 的 Windows 入口：双击即可启动，参数原样透传
+├─ run.sh                     # Linux / macOS 一键运行脚本（与 run.ps1 等价）
 ├─ 实验报告一-架构设计与Spec建模.md   # 实验一报告：Spec 建模与架构设计
 ├─ 实验报告二-详细设计与Agent实现.md  # 实验二报告：详细设计、代码实现与验收
 ├─ 提交产物清单.md            # 交付物逐项对照表（提交入口）
@@ -129,8 +130,7 @@
 
 ### 6.1 一键运行（推荐）
 
-Windows 下也可直接双击 `run.bat`（或在 `cmd` 中执行 `run.bat`），参数原样透传给 `run.ps1`，例如 `run.bat -Reset`、`run.bat -BackendOnly`。
-脚本会先切到自身所在目录，因此在任意路径下调用都能正确定位 `run.ps1`；启动失败时窗口会暂停以便查看报错。
+**Windows（`run.ps1` / `run.bat`）**：也可直接双击 `run.bat`，参数原样透传给 `run.ps1`（如 `run.bat -Reset`）。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File run.ps1              # 启动后端 :8001 + 前端 :5173
@@ -140,6 +140,22 @@ powershell -ExecutionPolicy Bypass -File run.ps1 -Open        # 启动后自动�
 powershell -ExecutionPolicy Bypass -File run.ps1 -Detach      # 启动后脚本退出，服务留在后台
 powershell -ExecutionPolicy Bypass -File run.ps1 -Stop        # 停止后台残留的进程
 ```
+
+**Linux / macOS（`run.sh`，行为等价，无需安装 PowerShell）**：
+
+```bash
+./run.sh                 # 启动后端 :8001 + 前端 :5173
+./run.sh --reset         # 先重置演示数据再启动
+./run.sh --backend-only  # 只启动后端
+./run.sh --skip-install  # 跳过依赖安装
+./run.sh --open          # 启动后自动打开浏览器
+./run.sh --detach        # 启动后脚本退出，服务留在后台
+./run.sh --stop          # 停止后台残留的进程
+```
+
+Unix 下若 `./run.sh` 提示权限不足，执行一次 `chmod +x run.sh` 即可。
+脚本会自动识别 `python3`；当系统 Python 因 PEP 668（Ubuntu 24.04 默认策略）拒绝 `pip install` 时，
+自动改建虚拟环境 `backend/.venv` 并在其中安装依赖，无需 `--break-system-packages`。
 
 脚本会检查 Python / Node 是否可用、按需安装依赖、等待健康检查通过；前台运行时按 `Ctrl+C` 一并停止前后端，
 运行日志写入 `logs/`（`backend.log` / `frontend.log` 等，已被 `.gitignore` 忽略）。

@@ -1,0 +1,5 @@
+# 换行符规范化：保证 shell 脚本在 Linux/macOS 上可直接执行，批处理在 Windows 上可解析
+*.sh    text eol=lf
+*.bat   text eol=crlf
+*.ps1   text eol=lf
+*.md    text eol=lf
