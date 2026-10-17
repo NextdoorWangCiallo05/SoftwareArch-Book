@@ -86,6 +86,7 @@
 仓库根目录/
 ├─ README.md                  # 本文件（仓库首页）
 ├─ run.ps1                    # 一键运行脚本：启动前后端 + 健康检查（见 §6.1）
+├─ run.bat                    # run.ps1 的 Windows 入口：双击即可启动，参数原样透传
 ├─ 实验报告一-架构设计与Spec建模.md   # 实验一报告：Spec 建模与架构设计
 ├─ 实验报告二-详细设计与Agent实现.md  # 实验二报告：详细设计、代码实现与验收
 ├─ 提交产物清单.md            # 交付物逐项对照表（提交入口）
@@ -127,6 +128,9 @@
 后端监听端口由 `backend/app/core/config.py` 的 `API_PORT` 控制（默认 8001），数据库地址、CORS 来源、令牌有效期等同样可用环境变量覆盖。
 
 ### 6.1 一键运行（推荐）
+
+Windows 下也可直接双击 `run.bat`（或在 `cmd` 中执行 `run.bat`），参数原样透传给 `run.ps1`，例如 `run.bat -Reset`、`run.bat -BackendOnly`。
+脚本会先切到自身所在目录，因此在任意路径下调用都能正确定位 `run.ps1`；启动失败时窗口会暂停以便查看报错。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File run.ps1              # 启动后端 :8001 + 前端 :5173
